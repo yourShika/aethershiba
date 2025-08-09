@@ -1,0 +1,38 @@
+{
+  "name": "aerthershiba",
+  "version": "1.0.0",
+  "description": "<h1 align=\"center\">AetherShiba — Discord Bot for Final Fantasy XIV</h1>",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p .",
+    "start": "node dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KamilBura/aerthershiba.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/KamilBura/aerthershiba/issues"
+  },
+  "homepage": "https://github.com/KamilBura/aerthershiba#readme",
+  "dependencies": {
+    "chalk": "^5.5.0",
+    "discord.js": "^14.21.0",
+    "dotenv": "^17.2.1"
+  },
+  "devDependencies": {
+    "@types/chalk": "^0.4.31",
+    "@types/node": "^24.2.1",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20.10.0"
+  }
+}
