@@ -1,9 +1,11 @@
+// Simple colored logging utilities used throughout the bot.
+// Each log message is prefixed with a timestamp and level label.
 import chalk from 'chalk';
 
+// Color function type used to annotate log level labels.
 type ColorFn = (s: string) => string;
 
-
-// Get Time and Date for Console Logging
+// Generate a colored timestamp string for console output.
 function timestamp() {
     const now = new Date();
 
@@ -18,10 +20,12 @@ function timestamp() {
     return chalk.gray(`[${hh}:${mm}:${ss}] [${yyyy}:${month}:${dd}]`);
 }
 
+// Generic log function that handles formatting and color selection.
 function log(level: 'INFO' | 'WARN' | 'ERROR', color: ColorFn, ...args: unknown[]) {
   console.log(`${timestamp()} [${color(level)}]`, ...args);
 }
 
+// Public logger API exposing helpers for each log level.
 export const logger = {
     info: (...args: unknown[]) => log('INFO', chalk.green, ...args),
     warn: (...args: unknown[]) => log('WARN', chalk.yellow, ...args),
