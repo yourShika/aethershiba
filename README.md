@@ -25,32 +25,14 @@
 
 <h2>📦 Setup (self-host)</h2>
 <ol>
-  <li>Create a Discord application and bot; enable the necessary <strong>Privileged Gateway Intents</strong> (Guild Members, Message Content if required).</li>
-  <li>Clone the repo: <code>git clone https://github.com/KamilBura/aerthershiba</code></li>
-  <li>Configure environment variables (see <code>.env.example</code> if present):
-    <ul>
-      <li><code>DISCORD_TOKEN</code> — your bot token</li>
-      <li><code>APPLICATION_ID</code> — for slash commands</li>
-      <li><code>XIV_API_KEYS</code> / <code>MARKET_API_KEYS</code> — for data providers</li>
-      <li><code>DEFAULT_REGION</code>, <code>TIMEZONE</code> — optional defaults</li>
-      <li><code>DATABASE_URL</code> — SQLite/Postgres (subscriptions, alerts, cache)</li>
-    </ul>
-  </li>
-  <li>Install dependencies &amp; run:
-    <pre><code># example
-pnpm install
-pnpm build
-pnpm start
-</code></pre>
-  </li>
+  <li>W.I.P</li>
 </ol>
 
 <hr/>
 
 <h2>🔐 Permissions &amp; Channels</h2>
 <ul>
-  <li>Recommended intents: <code>GUILD_MEMBERS</code>, <code>GUILD_MESSAGES</code>, <code>MESSAGE_CONTENT</code> (only if you need it), <code>GUILD_SCHEDULED_EVENTS</code>.</li>
-  <li>Create dedicated channels like <code>#ffxiv-resets</code>, <code>#housing</code>, <code>#market</code> and assign opt-in roles (e.g., <code>@Housing</code>, <code>@Market</code>).</li>
+  <li><code>W.I.P</code></li>
 </ul>
 
 <hr/>
