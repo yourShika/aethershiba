@@ -24,9 +24,9 @@
 <hr/>
 
 <h2>📦 Setup (self-host)</h2>
-<ol>
+<ul>
   <li>W.I.P</li>
-</ol>
+</ul>
 
 <hr/>
 
