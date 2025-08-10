@@ -57,8 +57,8 @@ export class ConfigManager {
         await fs.mkdir(this.configDir, { recursive: true });
     }
 
-    // Sets the configuration for a specific guild.
-    // Merges the provided config with the default values from the schema.
+    // Retrieves the full configuration object for a guild. The result is
+    // cached in memory to avoid repeated disk access.
     async get(gid: string): Promise<GuildConfig> {
         if (this.cache.has(gid)) return this.cache.get(gid)!; 
         await this.ensureDir();
@@ -83,13 +83,33 @@ export class ConfigManager {
         logger.info(`Saved config for guild ${gid}`);
     }
     
-    // Retrieves the value for a specific key in the guild's configuration.
-    // If the key is not found, it returns the default value from the schema.
+    // Sets the value for a specific key in the guild's configuration.
+    // Validation is performed against the registered schema if present.
     async set(gid: string, key: string, value: unknown) {
         const config = await this.get(gid);
         const schema = this.schemas.get(key);
         config[key] = schema ? schema.schema.parse(value) : value;
-        await this.save(gid, config); 
+        await this.save(gid, config);
+    }
+
+    /**
+     * Retrieves a specific configuration section for the guild. The result is
+     * typed based on the caller's expectations.
+     */
+    async getKey<T>(gid: string, key: string): Promise<T | undefined> {
+        const cfg = await this.get(gid);
+        return cfg[key] as T | undefined;
+    }
+
+    /**
+     * Merges a partial configuration into the existing entry for the given key.
+     * Only shallow merging is performed, which is sufficient for the current
+     * configuration shape.
+     */
+    async update(gid: string, key: string, patch: Record<string, unknown>) {
+        const current = (await this.getKey<Record<string, unknown>>(gid, key)) ?? {};
+        const next = { ...current, ...patch };
+        await this.set(gid, key, next);
     }
 
     // Gets the value for a specific key in the guild's configuration.

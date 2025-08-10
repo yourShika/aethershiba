@@ -11,6 +11,8 @@ export const housingPartial = z.object({
     channelId: z.string().min(1).optional(),
     timesPerDay: z.number().int().min(1).max(24).optional(),
     intervalMinutes: z.number().int().min(15).max(1440).optional(),
+    pingUserId: z.string().min(1).optional(),
+    pingRoleId: z.string().min(1).optional(),
 });
 
 // Schema for required housing configuration options.
@@ -23,6 +25,8 @@ export const HousingRequired = z.object({
     channelId: z.string().min(1),
     timesPerDay: z.number().int().min(1).max(24),
     intervalMinutes: z.number().int().min(15).max(1440),
+    pingUserId: z.string().min(1).optional(),
+    pingRoleId: z.string().min(1).optional(),
 });
 
 // Type definition for the housing configuration schema.
