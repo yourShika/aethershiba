@@ -1,8 +1,10 @@
-import { ActionRowBuilder, 
-    StringSelectMenuBuilder, 
+import { ActionRowBuilder,
+    StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
     ChannelSelectMenuBuilder,
     ChannelType,
+    UserSelectMenuBuilder,
+    RoleSelectMenuBuilder,
     ButtonBuilder,
     ButtonStyle,
     MessageFlags,
@@ -12,11 +14,13 @@ import type { ConfigSubcommand } from "./config";
 import { configManager } from "../../lib/config/configHandler";
 import { DATACENTERS, DISTRICT_OPTIONS } from "../../const/housing/housing";
 import { getWorldNamesByDC } from "../../functions/housing/housingWorlds";
-import { uiKey, setDraft } from "../../ui/housingUI"
+import { uiKey, setDraft } from "../../ui/housingUI";
+import { logError } from "../../lib/errorHandler.js";
 
 const PREFIX = "housing:";
 
 async function handle(interaction: ChatInputCommandInteraction) {
+    try {
     const guildID = interaction.guildId!;
     const config = await configManager.get(guildID);
     const h = (config['housing'] as any) ?? {};
@@ -97,6 +101,24 @@ async function handle(interaction: ChatInputCommandInteraction) {
       .addChannelTypes(ChannelType.GuildText),
   );
 
+  // User mention picker
+  const userBuilder = new UserSelectMenuBuilder()
+    .setCustomId(PREFIX + "pinguser")
+    .setPlaceholder("Ping User")
+    .setMinValues(0)
+    .setMaxValues(1);
+  if (h.pingUserId) userBuilder.setDefaultUsers(h.pingUserId);
+  const userRow = new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(userBuilder);
+
+  // Role mention picker
+  const roleBuilder = new RoleSelectMenuBuilder()
+    .setCustomId(PREFIX + "pingrole")
+    .setPlaceholder("Ping Role")
+    .setMinValues(0)
+    .setMaxValues(1);
+  if (h.pingRoleId) roleBuilder.setDefaultRoles(h.pingRoleId);
+  const roleRow = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(roleBuilder);
+
   // Buttons
   const btnRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
@@ -129,9 +151,15 @@ async function handle(interaction: ChatInputCommandInteraction) {
       pingUserId: h.pingUserId,
       pingRoleId: h.pingRoleId,
     }),
-    components: [dcRow, worldRow, distRow, chRow, btnRow],
+    components: [dcRow, worldRow, distRow, chRow, userRow, roleRow, btnRow],
     flags: MessageFlags.Ephemeral,
   });
+    } catch (err) {
+        logError('housing config handle', err);
+        if (interaction.isRepliable()) {
+            await interaction.reply({ content: 'Fehler beim Laden der Konfiguration.', flags: MessageFlags.Ephemeral });
+        }
+    }
 }
 
 function summaryContent(s: {
@@ -168,3 +196,4 @@ const subcmd: ConfigSubcommand = {
 
 export default subcmd;
 export const HOUSING_PREFIX = PREFIX; // exported for the interaction router
+
