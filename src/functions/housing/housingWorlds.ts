@@ -1,5 +1,4 @@
-import { log } from "console";
-import { logger } from "../../lib/logger";
+import { logError } from "../../lib/errorHandler.js";
 
 type World = { id: number; name: string; datacenter_name?: string; };
 let cache: { ts: number; worlds: World[] } | null = null;
@@ -9,11 +8,20 @@ let cache: { ts: number; worlds: World[] } | null = null;
 export async function fetchAllWorlds(): Promise<World[]> {
     const now = Date.now();
     if (cache && now - cache.ts < 6 * 60 * 60 * 1000) return cache.worlds;
-    const res = await fetch('https://paissadb.zhu.codes/worlds', { headers: { 'User-Agent': 'Aerther Shiba' } });
-    if (!res.ok) throw logger.error(`Failed to fetch worlds: ${res.status} ${res.statusText}`);
-    const worlds = await res.json() as World[];
-    cache = { ts: now, worlds };
-    return worlds;
+    try {
+        const res = await fetch('https://paissadb.zhu.codes/worlds', { headers: { 'User-Agent': 'Aerther Shiba' } });
+        if (!res.ok) {
+            const err = new Error(`Failed to fetch worlds: ${res.status} ${res.statusText}`);
+            logError('fetchAllWorlds', err);
+            throw err;
+        }
+        const worlds = await res.json() as World[];
+        cache = { ts: now, worlds };
+        return worlds;
+    } catch (err) {
+        logError('fetchAllWorlds', err);
+        throw err;
+    }
 }
 
 export async function getWorldNamesByDC(dc: string): Promise<string[]> {

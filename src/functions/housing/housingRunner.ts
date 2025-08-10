@@ -3,11 +3,13 @@ import { configManager } from '../../lib/config/configHandler';
 import { HousingRequired } from '../../lib/config/schemas/housing';
 import { PaissaProvider } from './housingProvider.paissa';
 import { plotEmbed } from '../../commands/housing/embed';
-import * as seen from './housingSaveConfig'
+import * as seen from './housingSaveConfig';
+import { logError } from '../../lib/errorHandler.js';
 
 const provider = new PaissaProvider();
 
 export async function runHousingCheckt(client: Client, guildID: string): Promise<number> {
+  try {
     const config = await configManager.get(guildID);
     const h = (config['housing'] as any) ?? null;
     if (!h?.enabled) return 0;
@@ -22,30 +24,40 @@ export async function runHousingCheckt(client: Client, guildID: string): Promise
     const plots = await provider.fetchFreePlots(hc.dataCenter, hc.world, hc.districts);
     await seen.cleanup(guildID);
 
-    const fresh = [];
-
+    const fresh = [] as typeof plots;
     for (const p of plots) {
-        const key = seen.makeKey(p);
-        if (!(await seen.has(guildID, key))) {
-            fresh.push(p);
-            await seen.add(guildID, key);
-        }
+      const key = seen.makeKey(p);
+      if (!(await seen.has(guildID, key))) {
+        fresh.push(p);
+        await seen.add(guildID, key);
+      }
     }
 
+    const mention = hc.pingUserId
+      ? `<@${hc.pingUserId}>`
+      : hc.pingRoleId
+      ? `<@&${hc.pingRoleId}>`
+      : '';
+
     if (fresh.length === 0) {
-        await (ch as TextChannel).send({ content: `No new free plots for ${hc.dataCenter}/${hc.world} in ${hc.districts.join(', ')}` });
-        return 1;
+      await (ch as TextChannel).send({
+        content: `${mention}No new free plots for ${hc.dataCenter}/${hc.world} in ${hc.districts.join(',')}`,
+      });
+      return 1;
     }
 
     let sent = 0;
     for (const p of fresh.slice(0, 10)) {
-        await (ch as TextChannel).send({ embeds: [plotEmbed(p)] });
-        sent++;
+      await (ch as TextChannel).send({ content: mention, embeds: [plotEmbed(p)] });
+      sent++;
     }
     if (fresh.length > 10) {
-        await (ch as TextChannel).send({ content: `+${fresh.length - 10} more... (truncated)`});
+      await (ch as TextChannel).send({ content: `${mention}+${fresh.length - 10} more... (truncated)` });
     }
 
     return sent;
-
+  } catch (err) {
+    logError(`housing check for guild ${guildID}`, err);
+    return 0;
+  }
 }
