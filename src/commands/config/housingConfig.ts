@@ -34,6 +34,8 @@ async function handle(interaction: ChatInputCommandInteraction) {
         channelId: h.channelId,
         timesPerDay: h.timesPerDay,
         intervalMinutes: h.intervalMinutes,
+        pingUserId: h.pingUserId,
+        pingRoleId: h.pingRoleId,
     });
 
     // Datacenter select
@@ -116,7 +118,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
   );
 
   await interaction.reply({
-    content: summaryContent({
+  content: summaryContent({
       enabled: Boolean(h.enabled),
       dc,
       world,
@@ -124,6 +126,8 @@ async function handle(interaction: ChatInputCommandInteraction) {
       channelId: h.channelId,
       timesPerDay: h.timesPerDay,
       intervalMinutes: h.intervalMinutes,
+      pingUserId: h.pingUserId,
+      pingRoleId: h.pingRoleId,
     }),
     components: [dcRow, worldRow, distRow, chRow, btnRow],
     flags: MessageFlags.Ephemeral,
@@ -138,6 +142,8 @@ function summaryContent(s: {
   channelId?: string;
   timesPerDay?: number;
   intervalMinutes?: number;
+  pingUserId?: string;
+  pingRoleId?: string;
 }) {
   return `**Housing-Konfiguration**
 - Enabled: ${s.enabled ? "ON" : "OFF"}
@@ -149,7 +155,9 @@ function summaryContent(s: {
     s.timesPerDay && s.intervalMinutes
       ? `${s.timesPerDay}×/Tag, alle ${s.intervalMinutes} Min`
       : "—"
-  }`;
+  }
+- Ping User: ${s.pingUserId ? `<@${s.pingUserId}>` : "—"}
+- Ping Role: ${s.pingRoleId ? `<@&${s.pingRoleId}>` : "—"}`;
 }
 
 const subcmd: ConfigSubcommand = {

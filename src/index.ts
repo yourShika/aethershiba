@@ -3,8 +3,9 @@
 import 'dotenv/config';
 import { Client, GatewayIntentBits } from 'discord.js';
 import { logger } from './lib/logger.js';
-import { configManager } from './lib/config/configHandler.js';
 import { commands } from './lib/command/commandInit.js';
+import { commandHandler } from './lib/command/commandHandler.js';
+import { registerEvents } from './events/index.js';
 
 // Ensure the Discord token is available. Without it the bot cannot start.
 const token = process.env.DISCORD_TOKEN;
@@ -19,36 +20,11 @@ const client = new Client({
     intents: [GatewayIntentBits.Guilds],
 });
 
-// When the client becomes ready we load configuration schemas,
-// preload config for all guilds and register slash commands.
-client.once('ready', async () => {
-    logger.info(`✅ Logged in as ${client.user?.tag}`);
-    await configManager.loadSchemas();
-    for (const guild of client.guilds.cache.values()) {
-        await configManager.get(guild.id);
-    }
-    await client.application?.commands.set(commands.map((c) => c.data.toJSON()));
-    logger.info('✅ Slash commands registered');
-});
+// Register all commands with the handler so they can be deployed and executed.
+commandHandler.registerAll(commands);
 
-// Listen for incoming slash command interactions and
-// dispatch them to the appropriate command handler.
-client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
-    const command = commands.find((c) => c.data.name === interaction.commandName);
-    if (!command) return;
-    try {
-        await command.execute(interaction);
-    } catch (error) {
-        logger.error('❌ Error executing command:', error);
-        const reply = { content: 'Es ist ein Fehler aufgetreten.', ephemeral: true } as const;
-        if (interaction.deferred || interaction.replied) {
-            await interaction.followUp(reply);
-        } else {
-            await interaction.reply(reply);
-        }
-    }
-});
+// Set up event listeners.
+registerEvents(client);
 
 // Finally log in using the provided token. Any login failure is fatal.
 client.login(token).catch((e) => {

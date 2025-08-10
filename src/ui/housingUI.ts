@@ -10,6 +10,8 @@ export type HousingDraft = {
     channelId?: string;
     timesPerDay?: number;
     intervalMinutes?: number;
+    pingUserId?: string;
+    pingRoleId?: string;
 };
 
 // In-memory storage for housing drafts.

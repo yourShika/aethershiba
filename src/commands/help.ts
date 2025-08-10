@@ -1,7 +1,7 @@
 // Slash command that lists all available commands using an embed.
 import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import type { Command } from '../lib/command/slashCommandInit.js';
+import type { Command } from '../lib/command/commandHandler.js';
 
 const command: Command = {
 
