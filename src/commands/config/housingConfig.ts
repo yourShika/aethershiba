@@ -138,9 +138,10 @@ async function handle(interaction: ChatInputCommandInteraction) {
       .setLabel("Cancel")
       .setStyle(ButtonStyle.Secondary),
   );
-
+  // Discord limits messages to 5 action rows, so we split the reply
+  // into two messages to avoid hitting the limit.
   await interaction.reply({
-  content: summaryContent({
+    content: summaryContent({
       enabled: Boolean(h.enabled),
       dc,
       world,
@@ -151,7 +152,13 @@ async function handle(interaction: ChatInputCommandInteraction) {
       pingUserId: h.pingUserId,
       pingRoleId: h.pingRoleId,
     }),
-    components: [dcRow, worldRow, distRow, chRow, userRow, roleRow, btnRow],
+    components: [dcRow, worldRow, distRow, chRow, userRow],
+    flags: MessageFlags.Ephemeral,
+  });
+
+  await interaction.followUp({
+    content: 'Weitere Optionen:',
+    components: [roleRow, btnRow],
     flags: MessageFlags.Ephemeral,
   });
     } catch (err) {
