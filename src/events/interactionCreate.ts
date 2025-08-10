@@ -1,6 +1,7 @@
 import { Events, Client, MessageFlags } from 'discord.js';
 import { logger } from '../lib/logger.js';
 import { commandHandler } from '../lib/command/commandHandler.js';
+import { HOUSING_PREFIX } from '../commands/config/housingConfig.js';
 
 /**
  * Registers the interactionCreate event used to route interactions
@@ -18,6 +19,9 @@ export function register(client: Client) {
                 interaction.isUserSelectMenu() ||
                 interaction.isRoleSelectMenu()
             ) {
+                if (interaction.customId?.startsWith(HOUSING_PREFIX)) {
+                    return;
+                }
                 logger.warn(`Unhandled interaction: ${interaction.customId}`);
                 if (interaction.isRepliable()) {
                     const reply = {
