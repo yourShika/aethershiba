@@ -3,8 +3,8 @@
 import 'dotenv/config';
 import { Client, GatewayIntentBits } from 'discord.js';
 import { logger } from './lib/logger.js';
-import { configManager } from './lib/config/index.js';
-import { commands } from './commands/index.js';
+import { configManager } from './lib/config/configHandler.js';
+import { commands } from './lib/command/commandInit.js';
 
 // Ensure the Discord token is available. Without it the bot cannot start.
 const token = process.env.DISCORD_TOKEN;
