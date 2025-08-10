@@ -14,8 +14,9 @@ export function register(client: Client) {
         for (const guild of client.guilds.cache.values()) {
             await configManager.get(guild.id);
         }
+        // Refresh slash commands on every startup so Discord has the latest data
         await commandHandler.deploy(client);
-        logger.info('✅ Commands registered');
+        logger.info('✅ Commands registered (refreshed)');
     });
 }
 
