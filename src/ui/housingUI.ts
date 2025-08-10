@@ -12,6 +12,8 @@ export type HousingDraft = {
     intervalMinutes?: number;
     pingUserId?: string;
     pingRoleId?: string;
+    /** ID of the summary message so it can be edited later. */
+    messageId?: string;
 };
 
 // In-memory storage for housing drafts.
@@ -44,4 +46,4 @@ export const clearDraft = (k: Key) => void mem.delete(k);
 setInterval(() => {
     const now = Date.now();
     for (const [k,v] of mem) if (now - v.ts > 30 * 60 * 1000) mem.delete(k);
-}, 10* 60 * 1000); // Clean up drafts older than 30 minutes
+}, 10 * 60 * 1000); // Clean up drafts older than 30 minutes
