@@ -35,6 +35,7 @@ async function refreshSummary(interaction: RepliableInteraction, key: string) {
     }
 }
 
+
 /**
  * Handles all interactions related to the housing configuration UI.
  */
