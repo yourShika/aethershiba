@@ -2,7 +2,7 @@ import { ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilde
     Client, Events, MessageFlags, type RepliableInteraction } from 'discord.js';
 import { HOUSING_PREFIX, summaryContent } from '../../commands/config/housingConfig.js';
 import { uiKey, setDraft, getDraft } from '../../ui/housingUI.js';
-import { configManager } from '../../lib/config/configHandler.js';
+import { configManager } from '../../handlers/configHandler.js';
 import { logger } from '../../lib/logger.js';
 import { getWorldNamesByDC } from '../../functions/housing/housingWorlds.js';
 

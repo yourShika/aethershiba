@@ -11,11 +11,11 @@ import { ActionRowBuilder,
     type ChatInputCommandInteraction,
  } from "discord.js";
 import type { ConfigSubcommand } from "./config";
-import { configManager } from "../../lib/config/configHandler";
+import { configManager } from "../../handlers/configHandler";
 import { DATACENTERS, DISTRICT_OPTIONS } from "../../const/housing/housing";
 import { getWorldNamesByDC } from "../../functions/housing/housingWorlds";
 import { uiKey, setDraft } from "../../ui/housingUI";
-import { logError } from "../../lib/errorHandler.js";
+import { logError } from "../../handlers/errorHandler.js";
 
 const PREFIX = "housing:";
 

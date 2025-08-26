@@ -1,6 +1,6 @@
 import { Events, Client } from 'discord.js';
 import { logger } from '../lib/logger.js';
-import { configManager } from '../lib/config/configHandler.js';
+import { configManager } from '../handlers/configHandler.js';
 import { commandHandler } from '../handlers/commandHandler.js';
 
 /**

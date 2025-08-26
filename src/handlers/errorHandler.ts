@@ -1,4 +1,4 @@
-import { logger } from './logger.js';
+import { logger } from '../lib/logger.js';
 
 /**
  * Simple helper to log errors with a contextual message.

@@ -1,4 +1,4 @@
-import { logError } from "../../lib/errorHandler.js";
+import { logError } from "../../handlers/errorHandler.js";
 
 type World = { id: number; name: string; datacenter_name?: string; };
 let cache: { ts: number; worlds: World[] } | null = null;

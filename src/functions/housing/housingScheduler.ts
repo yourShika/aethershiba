@@ -1,8 +1,8 @@
 import type { Client } from 'discord.js';
-import { configManager } from '../../lib/config/configHandler';
+import { configManager } from '../../handlers/configHandler';
 import { HousingRequired } from '../../schemas/housing';
 import { runHousingCheckt } from './housingRunner';
-import { logError } from '../../lib/errorHandler.js';
+import { logError } from '../../handlers/errorHandler.js';
 
 type S = { last?: number; runs: number; day: string};
 const state = new Map<string, S>();

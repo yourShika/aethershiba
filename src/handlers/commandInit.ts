@@ -2,7 +2,7 @@
 // exports an object implementing the Command interface.
 import type { Command } from './commandHandler.js';
 import config from '../commands/config/config.js';
-import help from '../commands/help.js';
+import help from '../commands/help/help.js';
 import housing from '../commands/housing/housing.js';
 
 // Array of all available commands used when registering slash commands

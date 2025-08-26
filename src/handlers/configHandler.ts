@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { ConfigSchema, GuildConfig } from './configSchema.js';
-import { logger } from '../logger.js';
+import { logger } from '../lib/logger.js';
 
 // This module manages configuration schemas and provides methods to load, get, and set guild configurations.
 // It supports dynamic schema loading from a specified directory and merges default values with existing configurations.

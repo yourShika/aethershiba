@@ -1,10 +1,10 @@
 import type { Client, TextChannel } from 'discord.js';
-import { configManager } from '../../lib/config/configHandler';
+import { configManager } from '../../handlers/configHandler';
 import { HousingRequired } from '../../schemas/housing';
 import { PaissaProvider } from './housingProvider.paissa';
 import { plotEmbed } from '../../commands/housing/embed';
 import * as seen from './housingSaveConfig';
-import { logError } from '../../lib/errorHandler.js';
+import { logError } from '../../handlers/errorHandler.js';
 
 const provider = new PaissaProvider();
 
