@@ -3,8 +3,8 @@
 import 'dotenv/config';
 import { Client, GatewayIntentBits } from 'discord.js';
 import { logger } from './lib/logger.js';
-import { commands } from './lib/command/commandInit.js';
-import { commandHandler } from './lib/command/commandHandler.js';
+import { commands } from './handlers/commandInit.js';
+import { commandHandler } from './handlers/commandHandler.js';
 import { registerEvents } from './events/index.js';
 
 // Ensure the Discord token is available. Without it the bot cannot start.

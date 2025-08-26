@@ -1,6 +1,6 @@
 // Schema describing basic guild-wide options such as command prefix.
 import { z } from 'zod';
-import type { ConfigSchema } from '../configSchema.js';
+import type { ConfigSchema } from '../handlers/configSchema.js';
 
 const schema: ConfigSchema<{ prefix: string }> = {
     // Unique identifier for this configuration section.

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ConfigSchema } from '../configSchema.js';
+import type { ConfigSchema } from '../handlers/configSchema.js';
 
 // Schema describing housing-related configuration options.
 // This includes data center, world, districts, and notification settings.

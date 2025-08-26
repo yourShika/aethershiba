@@ -1,6 +1,6 @@
 import type { Client, TextChannel } from 'discord.js';
 import { configManager } from '../../lib/config/configHandler';
-import { HousingRequired } from '../../lib/config/schemas/housing';
+import { HousingRequired } from '../../schemas/housing';
 import { PaissaProvider } from './housingProvider.paissa';
 import { plotEmbed } from '../../commands/housing/embed';
 import * as seen from './housingSaveConfig';

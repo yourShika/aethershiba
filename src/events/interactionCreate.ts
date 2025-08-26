@@ -1,6 +1,6 @@
 import { Events, Client, MessageFlags } from 'discord.js';
 import { logger } from '../lib/logger.js';
-import { commandHandler } from '../lib/command/commandHandler.js';
+import { commandHandler } from '../handlers/commandHandler.js';
 import { HOUSING_PREFIX } from '../commands/config/housingConfig.js';
 
 /**

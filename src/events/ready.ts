@@ -1,7 +1,7 @@
 import { Events, Client } from 'discord.js';
 import { logger } from '../lib/logger.js';
 import { configManager } from '../lib/config/configHandler.js';
-import { commandHandler } from '../lib/command/commandHandler.js';
+import { commandHandler } from '../handlers/commandHandler.js';
 
 /**
  * Registers the ready event which loads configuration and deploys commands

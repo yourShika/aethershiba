@@ -1,6 +1,6 @@
 import type { Client } from 'discord.js';
 import { configManager } from '../../lib/config/configHandler';
-import { HousingRequired } from '../../lib/config/schemas/housing';
+import { HousingRequired } from '../../schemas/housing';
 import { runHousingCheckt } from './housingRunner';
 import { logError } from '../../lib/errorHandler.js';
 
