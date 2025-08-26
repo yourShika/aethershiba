@@ -9,8 +9,8 @@ export const housingPartial = z.object({
     worlds: z.array(z.string().min(1)).optional(),
     districts: z.array(z.string()).optional(),
     channelId: z.string().min(1).optional(),
-    timesPerDay: z.number().int().min(1).max(24).optional(),
-    intervalMinutes: z.number().int().min(15).max(1440).optional(),
+    timesPerDay: z.number().int().min(1).max(8).optional(),
+    intervalMinutes: z.number().int().min(180).max(1440).optional(),
     pingUserId: z.string().min(1).optional(),
     pingRoleId: z.string().min(1).optional(),
 });
@@ -23,8 +23,8 @@ export const HousingRequired = z.object({
     worlds: z.array(z.string().min(1)).nonempty(),
     districts: z.array(z.string()).nonempty(),
     channelId: z.string().min(1),
-    timesPerDay: z.number().int().min(1).max(24),
-    intervalMinutes: z.number().int().min(15).max(1440),
+    timesPerDay: z.number().int().min(1).max(8),
+    intervalMinutes: z.number().int().min(180).max(1440),
     pingUserId: z.string().min(1).optional(),
     pingRoleId: z.string().min(1).optional(),
 });
