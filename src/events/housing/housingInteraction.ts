@@ -67,7 +67,8 @@ export function register(client: Client) {
                     if (interaction.isStringSelectMenu()) {
                         const dc = interaction.values[0]!;
                         const worldNames = await getWorldNamesByDC(dc);
-                        setDraft(key, { dataCenter: dc, worlds: [] });
+                        const draft = setDraft(key, { dataCenter: dc, worlds: [] });
+                        await configManager.update(interaction.guildId, 'housing', draft);
                         const worldRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
                             new StringSelectMenuBuilder()
                                 .setCustomId(HOUSING_PREFIX + 'world')
@@ -91,7 +92,8 @@ export function register(client: Client) {
                     if (interaction.isStringSelectMenu()) {
                         const worlds = interaction.values;
                         await interaction.deferUpdate();
-                        setDraft(key, { worlds });
+                        const draft = setDraft(key, { worlds });
+                        await configManager.update(interaction.guildId, 'housing', draft);
                         await refreshSummary(interaction, key);
                         await transientReply(interaction, `Worlds auf **${worlds.join(', ')}** gesetzt.`);
                     }
@@ -100,7 +102,8 @@ export function register(client: Client) {
                     if (interaction.isStringSelectMenu()) {
                         const districts = interaction.values;
                         await interaction.deferUpdate();
-                        setDraft(key, { districts });
+                        const draft = setDraft(key, { districts });
+                        await configManager.update(interaction.guildId, 'housing', draft);
                         await refreshSummary(interaction, key);
                         await transientReply(interaction, `Districts aktualisiert.`);
                     }
@@ -110,7 +113,8 @@ export function register(client: Client) {
                         const channel = interaction.channels.first();
                         await interaction.deferUpdate();
                         const patch: any = channel ? { channelId: channel.id } : { channelId: undefined };
-                        setDraft(key, patch);
+                        const draft = setDraft(key, patch);
+                        await configManager.update(interaction.guildId, 'housing', draft);
                         await refreshSummary(interaction, key);
                         await transientReply(interaction, channel ? `Kanal auf <#${channel.id}> gesetzt.` : 'Kanal entfernt.');
                     }
@@ -120,7 +124,8 @@ export function register(client: Client) {
                         const user = interaction.users.first();
                         await interaction.deferUpdate();
                         const patch: any = user ? { pingUserId: user.id } : { pingUserId: undefined };
-                        setDraft(key, patch);
+                        const draft = setDraft(key, patch);
+                        await configManager.update(interaction.guildId, 'housing', draft);
                         await refreshSummary(interaction, key);
                         await transientReply(interaction, user ? `Ping-User auf <@${user.id}> gesetzt.` : 'Ping-User entfernt.');
                     }
@@ -130,7 +135,8 @@ export function register(client: Client) {
                         const role = interaction.roles.first();
                         await interaction.deferUpdate();
                         const patch: any = role ? { pingRoleId: role.id } : { pingRoleId: undefined };
-                        setDraft(key, patch);
+                        const draft = setDraft(key, patch);
+                        await configManager.update(interaction.guildId, 'housing', draft);
                         await refreshSummary(interaction, key);
                         await transientReply(interaction, role ? `Ping-Rolle auf <@&${role.id}> gesetzt.` : 'Ping-Rolle entfernt.');
                     }
@@ -140,6 +146,7 @@ export function register(client: Client) {
                         const current = getDraft(key)?.enabled ?? false;
                         await interaction.deferUpdate();
                         const draft = setDraft(key, { enabled: !current });
+                        await configManager.update(interaction.guildId, 'housing', draft);
                         await refreshSummary(interaction, key);
                         await transientReply(interaction, `Housing ist jetzt ${draft.enabled ? 'aktiviert' : 'deaktiviert'}.`);
                     }
@@ -148,19 +155,6 @@ export function register(client: Client) {
                     if (interaction.isButton()) {
                         await interaction.deferUpdate();
                         await transientReply(interaction, 'Planung noch nicht implementiert.');
-                    }
-                    break;
-                case 'save':
-                    if (interaction.isButton()) {
-                        const draft = getDraft(key);
-                        await interaction.deferUpdate();
-                        if (draft) {
-                            await configManager.update(interaction.guildId, 'housing', draft);
-                            await transientReply(interaction, 'Housing-Konfiguration gespeichert.');
-                        } else {
-                            await transientReply(interaction, 'Keine Änderungen zum Speichern.');
-                        }
-                        await refreshSummary(interaction, key);
                     }
                     break;
                 case 'cancel':

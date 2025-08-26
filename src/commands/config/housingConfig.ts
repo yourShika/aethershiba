@@ -132,10 +132,6 @@ async function handle(interaction: ChatInputCommandInteraction) {
       .setLabel("Schedule…")
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
-      .setCustomId(PREFIX + "save")
-      .setLabel("Save")
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
       .setCustomId(PREFIX + "cancel")
       .setLabel("Cancel")
       .setStyle(ButtonStyle.Secondary),
