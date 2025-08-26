@@ -5,7 +5,7 @@ type Key = string;
 export type HousingDraft = {
     enabled: boolean;
     dataCenter?: string;
-    world?: string;
+    worlds?: string[];
     districts?: string[];
     channelId?: string;
     timesPerDay?: number;
