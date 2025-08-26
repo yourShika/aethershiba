@@ -71,7 +71,6 @@ export function register(client: Client) {
                         const worldNames = await getWorldNamesByDC(dc);
                         const draft = setDraft(key, { dataCenter: dc, worlds: [] });
                         await configManager.update(interaction.guildId, 'housing', draft);
-
                         const dcRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
                             new StringSelectMenuBuilder()
                                 .setCustomId(HOUSING_PREFIX + 'dc')
@@ -170,7 +169,6 @@ export function register(client: Client) {
                         const patch: any = channel ? { channelId: channel.id } : { channelId: undefined };
                         const draft = setDraft(key, patch);
                         await configManager.update(interaction.guildId, 'housing', draft);
-
                         const chBuilder = new ChannelSelectMenuBuilder()
                             .setCustomId(HOUSING_PREFIX + 'channel')
                             .setPlaceholder('Zielkanal')
@@ -190,7 +188,6 @@ export function register(client: Client) {
                         const patch: any = user ? { pingUserId: user.id } : { pingUserId: undefined };
                         const draft = setDraft(key, patch);
                         await configManager.update(interaction.guildId, 'housing', draft);
-
                         const userBuilder = new UserSelectMenuBuilder()
                             .setCustomId(HOUSING_PREFIX + 'pinguser')
                             .setPlaceholder('Ping User')
@@ -211,7 +208,6 @@ export function register(client: Client) {
                         const patch: any = role ? { pingRoleId: role.id } : { pingRoleId: undefined };
                         const draft = setDraft(key, patch);
                         await configManager.update(interaction.guildId, 'housing', draft);
-
                         const roleBuilder = new RoleSelectMenuBuilder()
                             .setCustomId(HOUSING_PREFIX + 'pingrole')
                             .setPlaceholder('Ping Role')
