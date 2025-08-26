@@ -96,12 +96,14 @@ async function handle(interaction: ChatInputCommandInteraction) {
     );
 
   // Channel picker
-  const chRow = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
-    new ChannelSelectMenuBuilder()
-      .setCustomId(PREFIX + "channel")
-      .setPlaceholder("Zielkanal")
-      .addChannelTypes(ChannelType.GuildText),
-  );
+  const chBuilder = new ChannelSelectMenuBuilder()
+    .setCustomId(PREFIX + "channel")
+    .setPlaceholder("Zielkanal")
+    .addChannelTypes(ChannelType.GuildText)
+    .setMinValues(0)
+    .setMaxValues(1);
+  if (h.channelId) chBuilder.setDefaultChannels(h.channelId);
+  const chRow = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(chBuilder);
 
   // User mention picker
   const userBuilder = new UserSelectMenuBuilder()
