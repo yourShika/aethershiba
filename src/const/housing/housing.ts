@@ -1,4 +1,4 @@
-export const DATACENTERS = ['Light', 'Chaos', 'Aether', 'Primal', 'Crystal', 'Dynamis', 'Materia', 'Elemental', 'Gaia', 'Mana', 'Meteor'] as const;
+export const DATACENTERS = ['Light', 'Chaos', 'Shadow', 'Aether', 'Primal', 'Crystal', 'Dynamis', 'Materia', 'Elemental', 'Gaia', 'Mana', 'Meteor'] as const;
 
 export const DISTRICT_OPTIONS = [
     { label: 'Mist', value: 'Mist' },

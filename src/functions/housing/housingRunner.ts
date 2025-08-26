@@ -21,11 +21,15 @@ export async function runHousingCheckt(client: Client, guildID: string): Promise
     const ch = await client.channels.fetch(hc.channelId).catch(() => null);
     if (!ch || !('send' in ch)) return 0;
 
-    const plots = await provider.fetchFreePlots(hc.dataCenter, hc.world, hc.districts);
+    const allPlots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
+    for (const world of hc.worlds) {
+      const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
+      allPlots.push(...p);
+    }
     await seen.cleanup(guildID);
 
-    const fresh = [] as typeof plots;
-    for (const p of plots) {
+    const fresh = [] as typeof allPlots;
+    for (const p of allPlots) {
       const key = seen.makeKey(p);
       if (!(await seen.has(guildID, key))) {
         fresh.push(p);
@@ -41,7 +45,7 @@ export async function runHousingCheckt(client: Client, guildID: string): Promise
 
     if (fresh.length === 0) {
       await (ch as TextChannel).send({
-        content: `${mention}No new free plots for ${hc.dataCenter}/${hc.world} in ${hc.districts.join(',')}`,
+        content: `${mention}No new free plots for ${hc.dataCenter}/${hc.worlds.join(', ')} in ${hc.districts.join(',')}`,
       });
       return 1;
     }

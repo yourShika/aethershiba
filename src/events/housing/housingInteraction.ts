@@ -1,8 +1,10 @@
-import { Client, Events, MessageFlags, type RepliableInteraction } from 'discord.js';
+import { ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
+    Client, Events, MessageFlags, type RepliableInteraction } from 'discord.js';
 import { HOUSING_PREFIX, summaryContent } from '../../commands/config/housingConfig.js';
 import { uiKey, setDraft, getDraft } from '../../ui/housingUI.js';
 import { configManager } from '../../lib/config/configHandler.js';
 import { logger } from '../../lib/logger.js';
+import { getWorldNamesByDC } from '../../functions/housing/housingWorlds.js';
 
 /** Sends a short-lived ephemeral notice and removes it after 5 seconds. */
 async function transientReply(interaction: RepliableInteraction, content: string) {
@@ -21,7 +23,7 @@ async function refreshSummary(interaction: RepliableInteraction, key: string) {
             content: summaryContent({
                 enabled: draft.enabled,
                 dc: draft.dataCenter ?? 'Light',
-                world: draft.world ?? '',
+                worlds: draft.worlds ?? [],
                 districts: draft.districts ?? [],
                 ...(draft.channelId ? { channelId: draft.channelId } : {}),
                 ...(draft.timesPerDay !== undefined ? { timesPerDay: draft.timesPerDay } : {}),
@@ -64,19 +66,34 @@ export function register(client: Client) {
                 case 'dc':
                     if (interaction.isStringSelectMenu()) {
                         const dc = interaction.values[0]!;
-                        await interaction.deferUpdate();
-                        setDraft(key, { dataCenter: dc });
+                        const worldNames = await getWorldNamesByDC(dc);
+                        setDraft(key, { dataCenter: dc, worlds: [] });
+                        const worldRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+                            new StringSelectMenuBuilder()
+                                .setCustomId(HOUSING_PREFIX + 'world')
+                                .setPlaceholder('Worlds')
+                                .addOptions(
+                                    worldNames.slice(0, 25).map(w =>
+                                        new StringSelectMenuOptionBuilder().setLabel(w).setValue(w)
+                                    ),
+                                )
+                                .setMinValues(1)
+                                .setMaxValues(Math.min(25, worldNames.length)),
+                        );
+                        const rows: any[] = [...interaction.message.components];
+                        rows[1] = worldRow;
+                        await interaction.update({ components: rows });
                         await refreshSummary(interaction, key);
                         await transientReply(interaction, `Datacenter auf **${dc}** gesetzt.`);
                     }
                     break;
                 case 'world':
                     if (interaction.isStringSelectMenu()) {
-                        const world = interaction.values[0]!;
+                        const worlds = interaction.values;
                         await interaction.deferUpdate();
-                        setDraft(key, { world });
+                        setDraft(key, { worlds });
                         await refreshSummary(interaction, key);
-                        await transientReply(interaction, `World auf **${world}** gesetzt.`);
+                        await transientReply(interaction, `Worlds auf **${worlds.join(', ')}** gesetzt.`);
                     }
                     break;
                 case 'districts':
@@ -154,7 +171,7 @@ export function register(client: Client) {
                         const patch: any = {
                             enabled: Boolean(h.enabled),
                             dataCenter: h.dataCenter,
-                            world: h.world,
+                            worlds: Array.isArray(h.worlds) ? h.worlds : h.world ? [h.world] : [],
                             districts: h.districts ?? [],
                             channelId: h.channelId,
                             timesPerDay: h.timesPerDay,
@@ -194,3 +211,4 @@ export function register(client: Client) {
 }
 
 export default { register };
+

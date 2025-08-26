@@ -26,14 +26,16 @@ async function handle(interaction: ChatInputCommandInteraction) {
     const h = (config['housing'] as any) ?? {};
 
     const dc = String(h.dataCenter ?? 'Light');
-    const worlds = await getWorldNamesByDC(dc);
-    const world = String(h.world ?? (worlds[0] ?? ""));
+    const worldNames = await getWorldNamesByDC(dc);
+    const worlds = Array.isArray(h.worlds)
+        ? h.worlds.filter((w: string) => worldNames.includes(w))
+        : h.world ? [h.world].filter((w: string) => worldNames.includes(w)) : [];
 
     const k = uiKey(guildID, interaction.user.id);
     setDraft(k, {
         enabled: Boolean(h.enabled),
         dataCenter: dc,
-        world,
+        worlds,
         districts: h.districts ?? [],
         channelId: h.channelId,
         timesPerDay: h.timesPerDay,
@@ -59,21 +61,21 @@ async function handle(interaction: ChatInputCommandInteraction) {
         .setMaxValues(1),
     );
     
-    // World select (depends on DC)
+    // World multi-select (depends on DC)
     const worldRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId(PREFIX + "world")
-        .setPlaceholder("World")
+        .setPlaceholder("Worlds")
         .addOptions(
-          worlds.slice(0, 25).map(w =>
+          worldNames.slice(0, 25).map(w =>
             new StringSelectMenuOptionBuilder()
               .setLabel(w)
               .setValue(w)
-              .setDefault(w === world)           // ⬅️ default hier
+              .setDefault(worlds.includes(w))
           ),
         )
         .setMinValues(1)
-        .setMaxValues(1),
+        .setMaxValues(Math.min(25, worldNames.length)),
     );
     
     // District multi-select
@@ -144,7 +146,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
     content: summaryContent({
       enabled: Boolean(h.enabled),
       dc,
-      world,
+      worlds,
       districts: h.districts ?? [],
       channelId: h.channelId,
       timesPerDay: h.timesPerDay,
@@ -176,7 +178,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
 export function summaryContent(s: {
   enabled: boolean;
   dc: string;
-  world: string;
+  worlds: string[];
   districts: string[];
   channelId?: string;
   timesPerDay?: number;
@@ -187,7 +189,7 @@ export function summaryContent(s: {
   return `**Housing-Konfiguration**
 - Enabled: ${s.enabled ? "ON" : "OFF"}
 - DC: ${s.dc}
-- World: ${s.world || "—"}
+- Worlds: ${s.worlds.join(", ") || "—"}
 - Districts: ${s.districts.join(", ") || "—"}
 - Channel: ${s.channelId ? `<#${s.channelId}>` : "—"}
 - Auto: ${

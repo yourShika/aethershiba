@@ -6,7 +6,7 @@ import type { ConfigSchema } from '../handlers/configSchema.js';
 export const housingPartial = z.object({
     enabled: z.boolean(),
     dataCenter: z.string().min(1).optional(),
-    world: z.string().min(1).optional(),
+    worlds: z.array(z.string().min(1)).optional(),
     districts: z.array(z.string()).optional(),
     channelId: z.string().min(1).optional(),
     timesPerDay: z.number().int().min(1).max(24).optional(),
@@ -20,7 +20,7 @@ export const housingPartial = z.object({
 export const HousingRequired = z.object({
     enabled: z.literal(true),
     dataCenter: z.string().min(1),
-    world: z.string().min(1),
+    worlds: z.array(z.string().min(1)).nonempty(),
     districts: z.array(z.string()).nonempty(),
     channelId: z.string().min(1),
     timesPerDay: z.number().int().min(1).max(24),
