@@ -99,7 +99,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
   const chBuilder = new ChannelSelectMenuBuilder()
     .setCustomId(PREFIX + "channel")
     .setPlaceholder("Zielkanal")
-    .addChannelTypes(ChannelType.GuildText)
+    .addChannelTypes(ChannelType.GuildText, ChannelType.GuildForum)
     .setMinValues(0)
     .setMaxValues(1);
   if (h.channelId) chBuilder.setDefaultChannels(h.channelId);
