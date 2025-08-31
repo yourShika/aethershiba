@@ -11,7 +11,7 @@ import { DISTRICT_IMAGES } from '../../const/housing/housing';
  * an image of the district. The footer displays the time the embed
  * was generated and the current status of the plot.
  */
-export function plotEmbed(p: Plot) {
+export function plotEmbed(p: Plot, refreshedAt?: Date) {
     const status = formatStatus(p);
     const embed = new EmbedBuilder()
         .setTitle(`${p.world} - ${p.district} Ward ${p.ward} Plot ${p.plot}`)
@@ -24,6 +24,10 @@ export function plotEmbed(p: Plot) {
             { name: 'FC Available', value: p.ward <= 20 ? 'Yes' : 'No', inline: true },
         )
         .setFooter({ text: `${new Date().toLocaleString()} • ${status}` });
+
+    if (refreshedAt) {
+        embed.addFields({ name: 'Refreshed at', value: refreshedAt.toLocaleString(), inline: false });
+    }
 
     const imgFile = DISTRICT_IMAGES[p.district];
     let attachment: AttachmentBuilder | undefined;
