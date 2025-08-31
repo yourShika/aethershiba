@@ -1,7 +1,15 @@
-import { Client, Events, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
+import {
+  Client,
+  Events,
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+  MessageFlags,
+} from 'discord.js';
 import { getWorldNamesByDC } from '../../functions/housing/housingWorlds.js';
 import { PaissaProvider } from '../../functions/housing/housingProvider.paissa.js';
 import { plotEmbed } from '../../commands/housing/embed.js';
+import { HOUSING_PREFIX } from '../../commands/config/housingConfig.js';
 
 type ResearchState = {
   dc?: string;
@@ -13,16 +21,18 @@ type ResearchState = {
 
 const mem = new Map<string, ResearchState>();
 
+const PREFIX = HOUSING_PREFIX + 'research:';
+
 export function register(client: Client) {
   client.on(Events.InteractionCreate, async (interaction) => {
     try {
       if (!(interaction.isButton() || interaction.isStringSelectMenu())) return;
-      if (!interaction.customId.startsWith('research:')) return;
+      if (!interaction.customId.startsWith(PREFIX)) return;
 
       const id = interaction.user.id;
       const state: ResearchState = mem.get(id) ?? { districts: [], fc: 'any', size: 'any' };
 
-      const action = interaction.customId.slice('research:'.length);
+      const action = interaction.customId.slice(PREFIX.length);
       switch (action) {
         case 'dc':
           if (interaction.isStringSelectMenu()) {
@@ -33,7 +43,7 @@ export function register(client: Client) {
             const worlds = await getWorldNamesByDC(dc);
             const worldRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
               new StringSelectMenuBuilder()
-                .setCustomId('research:world')
+                .setCustomId(PREFIX + 'world')
                 .setPlaceholder('Welt wählen')
                 .addOptions(worlds.map(w => new StringSelectMenuOptionBuilder().setLabel(w).setValue(w)))
                 .setMinValues(1)
@@ -101,9 +111,13 @@ export function register(client: Client) {
     } catch (err) {
       if (interaction.isRepliable()) {
         if (interaction.deferred || interaction.replied) {
-          await interaction.followUp({ content: 'Fehler bei der Recherche.', ephemeral: true }).catch(() => {});
+          await interaction
+            .followUp({ content: 'Fehler bei der Recherche.', flags: MessageFlags.Ephemeral })
+            .catch(() => {});
         } else {
-          await interaction.reply({ content: 'Fehler bei der Recherche.', ephemeral: true }).catch(() => {});
+          await interaction
+            .reply({ content: 'Fehler bei der Recherche.', flags: MessageFlags.Ephemeral })
+            .catch(() => {});
         }
       }
     }

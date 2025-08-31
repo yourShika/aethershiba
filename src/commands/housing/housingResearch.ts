@@ -10,6 +10,7 @@ import {
     ButtonStyle,
 } from 'discord.js';
 import { DATACENTERS, DISTRICT_OPTIONS } from '../../const/housing/housing';
+import { HOUSING_PREFIX } from '../config/housingConfig.js';
 
 const builder = new SlashCommandSubcommandBuilder()
     .setName('research')
@@ -21,9 +22,10 @@ export default {
     async execute(interaction: ChatInputCommandInteraction) {
         if (interaction.options.getSubcommand(true) !== builder.name) return;
 
+        const PREFIX = HOUSING_PREFIX + 'research:';
         const dcRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
             new StringSelectMenuBuilder()
-                .setCustomId('research:dc')
+                .setCustomId(PREFIX + 'dc')
                 .setPlaceholder('Datacenter wählen')
                 .addOptions(DATACENTERS.map(d => new StringSelectMenuOptionBuilder().setLabel(d).setValue(d)))
                 .setMinValues(1)
@@ -32,7 +34,7 @@ export default {
 
         const distRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
             new StringSelectMenuBuilder()
-                .setCustomId('research:district')
+                .setCustomId(PREFIX + 'district')
                 .setPlaceholder('District(s) wählen')
                 .addOptions(DISTRICT_OPTIONS.map(o => new StringSelectMenuOptionBuilder().setLabel(o.label).setValue(o.value)))
                 .setMinValues(0)
@@ -41,7 +43,7 @@ export default {
 
         const fcRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
             new StringSelectMenuBuilder()
-                .setCustomId('research:fc')
+                .setCustomId(PREFIX + 'fc')
                 .setPlaceholder('FC Only?')
                 .addOptions(
                     new StringSelectMenuOptionBuilder().setLabel('Beliebig').setValue('any'),
@@ -54,7 +56,7 @@ export default {
 
         const sizeRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
             new StringSelectMenuBuilder()
-                .setCustomId('research:size')
+                .setCustomId(PREFIX + 'size')
                 .setPlaceholder('Hausgröße')
                 .addOptions(
                     new StringSelectMenuOptionBuilder().setLabel('Beliebig').setValue('any'),
@@ -68,7 +70,7 @@ export default {
 
         const goRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder()
-                .setCustomId('research:go')
+                .setCustomId(PREFIX + 'go')
                 .setLabel('Suchen')
                 .setStyle(ButtonStyle.Primary),
         );
