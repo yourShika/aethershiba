@@ -6,6 +6,7 @@ import { logger } from './lib/logger.js';
 import { commands } from './handlers/commandInit.js';
 import { commandHandler } from './handlers/commandHandler.js';
 import { registerEvents } from './events/index.js';
+import { startHousingMessageWatcher } from './functions/housing/housingMessageWatcher.js';
 
 // Ensure the Discord token is available. Without it the bot cannot start.
 const token = process.env.DISCORD_TOKEN;
@@ -25,6 +26,7 @@ commandHandler.registerAll(commands);
 
 // Set up event listeners.
 registerEvents(client);
+startHousingMessageWatcher(client);
 
 // Finally log in using the provided token. Any login failure is fatal.
 client.login(token).catch((e) => {

@@ -1,5 +1,11 @@
 
-import { SlashCommandBuilder, MessageFlags, type ChatInputCommandInteraction, type SlashCommandSubcommandBuilder } from "discord.js";
+import {
+  SlashCommandBuilder,
+  MessageFlags,
+  type ChatInputCommandInteraction,
+  type SlashCommandSubcommandBuilder,
+  type AutocompleteInteraction,
+} from "discord.js";
 import type { Command } from "../../handlers/commandHandler";
 
 import start from './housingStart';
@@ -11,6 +17,7 @@ type Sub = {
     description: string;
     build?: (sc: SlashCommandSubcommandBuilder) => SlashCommandSubcommandBuilder;
     execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
+    autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
 };
 
 const SUBS: Sub[] = [start, refresh, research];
@@ -39,4 +46,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     await entry.execute(interaction);
 }
 
-export default { data, execute } satisfies Command;
+export async function autocomplete(interaction: AutocompleteInteraction) {
+    const sub = interaction.options.getSubcommand();
+    const entry = SUBS.find(s => s.name === sub);
+    if (!entry || !entry.autocomplete) return;
+    await entry.autocomplete(interaction);
+}
+
+export default { data, execute, autocomplete } satisfies Command;

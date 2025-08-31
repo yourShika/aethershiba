@@ -4,12 +4,14 @@ import {
   SlashCommandSubcommandBuilder,
   type ChatInputCommandInteraction,
   type ForumChannel,
+  type AutocompleteInteraction,
 } from 'discord.js';
 import { configManager } from '../../handlers/configHandler.js';
 import { HousingStart } from '../../schemas/housing.js';
 import { PaissaProvider } from '../../functions/housing/housingProvider.paissa.js';
 import { plotEmbed } from './embed.js';
 import { DATACENTERS, DISTRICT_OPTIONS } from '../../const/housing/housing.js';
+import { getWorldNamesByDC } from '../../functions/housing/housingWorlds.js';
 import { z } from 'zod';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -19,6 +21,10 @@ const provider = new PaissaProvider();
 
 function plotKey(p: Plot): string {
   return [p.dataCenter, p.world, p.district, p.ward, p.plot].join(':');
+}
+
+function plotHash(p: Plot): string {
+  return JSON.stringify(p);
 }
 
 export default {
@@ -42,13 +48,14 @@ export default {
       .addStringOption(opt =>
         opt
           .setName('worlds')
-          .setDescription('Comma-separated worlds (required for no_config)'),
+          .setDescription('Comma-separated worlds (required for no_config)')
+          .setAutocomplete(true),
       )
       .addStringOption(opt =>
         opt
           .setName('districts')
           .setDescription('Comma-separated districts (required for no_config)')
-          .addChoices(...DISTRICT_OPTIONS.map(d => ({ name: d.label, value: d.value }))),
+          .setAutocomplete(true),
       )
       .addChannelOption(opt =>
         opt
@@ -133,7 +140,7 @@ export default {
       .filter(Boolean)
       .join(' ');
     const filePath = path.join(process.cwd(), 'src', 'guildconfig', 'housing_messages.json');
-    let store: Record<string, { channelId: string; threads: Record<string, string>; messages: Record<string, { threadId: string; messageId: string }> }> = {};
+    let store: Record<string, { channelId: string; threads: Record<string, string>; messages: Record<string, { threadId: string; messageId: string; hash: string }> }> = {};
     try {
       const raw = await readFile(filePath, 'utf8');
       store = JSON.parse(raw);
@@ -141,35 +148,79 @@ export default {
       store = {};
     }
 
-    const rec = { channelId: hc.channelId, threads: {} as Record<string, string>, messages: {} as Record<string, { threadId: string; messageId: string }> };
+    const rec = store[guildID] ?? { channelId: hc.channelId, threads: {}, messages: {} };
+    rec.channelId = hc.channelId;
     store[guildID] = rec;
 
     let total = 0;
     for (const [district, list] of byDistrict) {
-      const first = list[0]!;
-      const { embed, attachment } = plotEmbed(first);
-      const msg: any = { embeds: [embed], files: attachment ? [attachment] : [] };
-      if (mention) msg.content = mention;
-      const thread = await (ch as ForumChannel).threads.create({
-        name: district,
-        message: msg,
-      });
-      rec.threads[district] = thread.id;
-      const starter = await thread.fetchStarterMessage();
-      rec.messages[plotKey(first)] = { threadId: thread.id, messageId: starter?.id ?? '' };
+      let threadId = rec.threads[district];
+      let thread: ForumChannel | any = threadId
+        ? await interaction.client.channels.fetch(threadId).catch(() => null)
+        : null;
 
-      for (const p of list.slice(1)) {
-        const { embed: e, attachment: a } = plotEmbed(p);
-        const m: any = { embeds: [e], files: a ? [a] : [] };
-        if (mention) m.content = mention;
-        const sent = await thread.send(m);
-        rec.messages[plotKey(p)] = { threadId: thread.id, messageId: sent.id };
+      for (const p of list) {
+        const key = plotKey(p);
+        if (rec.messages[key]) continue;
+
+        if (!thread) {
+          const { embed, attachment } = plotEmbed(p);
+          const msg: any = { embeds: [embed], files: attachment ? [attachment] : [] };
+          if (mention) msg.content = mention;
+          thread = await (ch as ForumChannel).threads.create({ name: district, message: msg });
+          rec.threads[district] = thread.id;
+          const starter = await thread.fetchStarterMessage();
+          rec.messages[key] = { threadId: thread.id, messageId: starter?.id ?? '', hash: plotHash(p) };
+        } else {
+          const { embed, attachment } = plotEmbed(p);
+          const m: any = { embeds: [embed], files: attachment ? [attachment] : [] };
+          if (mention) m.content = mention;
+          const sent = await thread.send(m);
+          rec.messages[key] = { threadId: thread.id, messageId: sent.id, hash: plotHash(p) };
+        }
+        total++;
       }
-      total += list.length;
     }
 
     await writeFile(filePath, JSON.stringify(store, null, 2), 'utf8');
 
     await interaction.editReply({ content: `Posted ${total} plots across ${byDistrict.size} districts to <#${hc.channelId}>` });
+  },
+  async autocomplete(interaction: AutocompleteInteraction) {
+    const focused = interaction.options.getFocused(true);
+    if (focused.name === 'worlds') {
+      const dc = interaction.options.getString('datacenter');
+      if (!dc) {
+        await interaction.respond([]);
+        return;
+      }
+      const parts = focused.value.split(/[,\s]+/);
+      const last = parts.pop() ?? '';
+      const already = parts.filter(Boolean);
+      const worlds = await getWorldNamesByDC(dc);
+      const choices = worlds
+        .filter(w => !already.some(a => a.toLowerCase() === w.toLowerCase()))
+        .filter(w => w.toLowerCase().startsWith(last.toLowerCase()))
+        .slice(0, 25);
+      const prefix = already.length ? already.join(', ') + ', ' : '';
+      await interaction.respond(choices.map(w => ({ name: w, value: prefix + w })));
+      return;
+    }
+
+    if (focused.name === 'districts') {
+      const parts = focused.value.split(/[,\s]+/);
+      const last = parts.pop() ?? '';
+      const already = parts.filter(Boolean);
+      const options = DISTRICT_OPTIONS.map(d => d.value);
+      const choices = options
+        .filter(d => !already.some(a => a.toLowerCase() === d.toLowerCase()))
+        .filter(d => d.toLowerCase().startsWith(last.toLowerCase()))
+        .slice(0, 25);
+      const prefix = already.length ? already.join(', ') + ', ' : '';
+      await interaction.respond(choices.map(d => ({ name: d, value: prefix + d })));
+      return;
+    }
+
+    await interaction.respond([]);
   }
 };
