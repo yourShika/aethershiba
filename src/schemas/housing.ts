@@ -23,6 +23,8 @@ export const HousingStart = z.object({
     worlds: z.array(z.string().min(1)).nonempty(),
     districts: z.array(z.string()).nonempty(),
     channelId: z.string().min(1),
+    pingUserId: z.string().min(1).optional(),
+    pingRoleId: z.string().min(1).optional(),
 });
 
 // Schema for required housing configuration options.
