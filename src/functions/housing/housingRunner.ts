@@ -8,7 +8,11 @@ import { logError } from '../../handlers/errorHandler.js';
 
 const provider = new PaissaProvider();
 
-export async function runHousingCheckt(client: Client, guildID: string): Promise<number> {
+type RunOptions = {
+  ignoreSeen?: boolean;
+};
+
+export async function runHousingCheckt(client: Client, guildID: string, opts: RunOptions = {}): Promise<number> {
   try {
     const config = await configManager.get(guildID);
     const h = (config['housing'] as any) ?? null;
@@ -26,14 +30,18 @@ export async function runHousingCheckt(client: Client, guildID: string): Promise
       const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
       allPlots.push(...p);
     }
-    await seen.cleanup(guildID);
+    if (!opts.ignoreSeen) {
+      await seen.cleanup(guildID);
+    }
 
     const fresh = [] as typeof allPlots;
     for (const p of allPlots) {
       const key = seen.makeKey(p);
-      if (!(await seen.has(guildID, key))) {
+      if (opts.ignoreSeen || !(await seen.has(guildID, key))) {
         fresh.push(p);
-        await seen.add(guildID, key);
+        if (!opts.ignoreSeen) {
+          await seen.add(guildID, key);
+        }
       }
     }
 
