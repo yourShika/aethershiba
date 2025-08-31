@@ -42,6 +42,7 @@ function formatStatus(p: Plot): string {
         case 'preparation': return 'Vorbereitung';
         case 'running': return `Verlosung läuft${p.lottery.endsAt ? ` bis ${p.lottery.endsAt}` : ''}`;
         case 'results': return `Ergebnisse${p.lottery.winner != null ? ` - Gewinner: ${p.lottery.winner ? 'Ja' : 'Nein'}` : ''}`;
+        case 'none': return 'Verfügbar';
         default: return '-';
     }
 }

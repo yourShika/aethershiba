@@ -8,6 +8,8 @@ import { configManager } from '../../handlers/configHandler.js';
 import { HousingStart } from '../../schemas/housing.js';
 import { PaissaProvider } from '../../functions/housing/housingProvider.paissa.js';
 import { plotEmbed } from './embed.js';
+import { readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 
 const provider = new PaissaProvider();
 
@@ -55,6 +57,21 @@ export default {
       arr.push(p);
       byDistrict.set(p.district, arr);
     }
+
+    const categorized: Record<string, typeof plots> = {};
+    for (const [district, list] of byDistrict) {
+      categorized[district] = list;
+    }
+    const filePath = path.join(process.cwd(), 'housing_messages.json');
+    let existing: Record<string, Record<string, typeof plots>> = {};
+    try {
+      const raw = await readFile(filePath, 'utf8');
+      existing = JSON.parse(raw);
+    } catch {
+      existing = {};
+    }
+    existing[guildID] = categorized;
+    await writeFile(filePath, JSON.stringify(existing, null, 2), 'utf8');
 
     let total = 0;
     for (const [district, list] of byDistrict) {
