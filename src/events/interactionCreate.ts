@@ -10,7 +10,7 @@ import { HOUSING_PREFIX } from '../commands/config/housingConfig.js';
 export function register(client: Client) {
     client.on(Events.InteractionCreate, async (interaction) => {
         try {
-            if (interaction.isChatInputCommand()) {
+            if (interaction.isChatInputCommand() || interaction.isAutocomplete()) {
                 await commandHandler.handle(interaction);
             } else if (
                 interaction.isButton() ||

@@ -1,4 +1,10 @@
-import type { Client, Interaction, SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
+import type {
+  Client,
+  Interaction,
+  SlashCommandBuilder,
+  ChatInputCommandInteraction,
+  AutocompleteInteraction,
+} from 'discord.js';
 
 /**
  * Represents a generic command that can be registered with the bot.
@@ -10,6 +16,8 @@ export interface Command {
     data: SlashCommandBuilder;
     /** Function executed when the command is invoked. */
     execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
+    /** Optional handler for autocomplete interactions. */
+    autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
 }
 
 /**
@@ -47,10 +55,18 @@ export class CommandHandler {
      * executing it. Unknown interactions are ignored.
      */
     async handle(interaction: Interaction) {
-        if (!interaction.isChatInputCommand()) return;
-        const command = this.commands.get(interaction.commandName);
-        if (!command) return;
-        await command.execute(interaction);
+        if (interaction.isChatInputCommand()) {
+            const command = this.commands.get(interaction.commandName);
+            if (!command) return;
+            await command.execute(interaction);
+            return;
+        }
+
+        if (interaction.isAutocomplete()) {
+            const command = this.commands.get(interaction.commandName);
+            if (!command || !command.autocomplete) return;
+            await command.autocomplete(interaction);
+        }
     }
 }
 
