@@ -136,7 +136,7 @@ export default {
     ]
       .filter(Boolean)
       .join(' ');
-    const filePath = path.join(process.cwd(), 'src', 'guildconfig', 'housing_messages.json');
+    const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
     let store: Record<string, { channelId: string; threads: Record<string, string>; messages: Record<string, { threadId: string; messageId: string; hash: string }> }> = {};
     try {
       const raw = await readFile(filePath, 'utf8');

@@ -1,4 +1,5 @@
 import type { Client, Interaction, SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
+import { logger } from '../lib/logger';
 
 /**
  * Represents a generic command that can be registered with the bot.
