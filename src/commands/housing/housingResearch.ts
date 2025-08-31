@@ -23,7 +23,6 @@ export default {
         if (interaction.options.getSubcommand(true) !== builder.name) return;
 
         const PREFIX = HOUSING_PREFIX + 'research:';
-
         const dcRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
             new StringSelectMenuBuilder()
                 .setCustomId(PREFIX + 'dc')
