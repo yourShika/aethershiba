@@ -19,10 +19,10 @@ const PlotZ = z.object({
     ward_number: z.number().or(z.string()),
     plot_number: z.number().or(z.string()),
     price: z.number().or(z.string()).optional(),
-    size: z.string().optional(),
+    size: z.union([z.string(), z.number()]).optional(),
     free_company_only: z.boolean().optional(),
-    lottery_state: z.string().optional(),
-    lottery_end: z.string().optional(),
+    lottery_state: z.union([z.string(), z.number()]).optional(),
+    lottery_end: z.union([z.string(), z.number()]).optional(),
     lottery_winner: z.boolean().optional(),
 }).passthrough();
 
@@ -68,10 +68,10 @@ export class PaissaProvider {
         if (wanted.size && ![...wanted].some(w => eqDistrict(w, d.name))) continue;
 
         for (const p of d.open_plots) {
-            const state = normState(p.lottery_state);
+            const state = normState(typeof p.lottery_state === 'number' ? String(p.lottery_state) : p.lottery_state);
 
             const lottery: Plot['lottery'] = { state };
-            if (p.lottery_end) lottery.endsAt = p.lottery_end;
+            if (p.lottery_end !== undefined) lottery.endsAt = String(p.lottery_end);
             if (typeof p.lottery_winner === 'boolean') lottery.winner = p.lottery_winner;
 
             const item: Plot = {
@@ -85,7 +85,7 @@ export class PaissaProvider {
 
             if (p.price !== undefined) item.price = Number(p.price);
 
-            const sizeVal = normSize(p.size);
+            const sizeVal = normSize(typeof p.size === 'number' ? String(p.size) : p.size);
             if (sizeVal) item.size = sizeVal;
 
             if (typeof p.free_company_only === 'boolean') item.fcOnly = p.free_company_only;
