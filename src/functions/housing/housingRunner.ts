@@ -1,4 +1,5 @@
-import type { Client, TextChannel } from 'discord.js';
+import type { Client, TextChannel, ForumChannel } from 'discord.js';
+import { ChannelType } from 'discord.js';
 import { configManager } from '../../handlers/configHandler';
 import { HousingRequired } from '../../schemas/housing';
 import { PaissaProvider } from './housingProvider.paissa';
@@ -23,7 +24,7 @@ export async function runHousingCheckt(client: Client, guildID: string, opts: Ru
     const hc = ok.data;
 
     const ch = await client.channels.fetch(hc.channelId).catch(() => null);
-    if (!ch || !('send' in ch)) return 0;
+    if (!ch) return 0;
 
     const allPlots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
     for (const world of hc.worlds) {
@@ -52,15 +53,52 @@ export async function runHousingCheckt(client: Client, guildID: string, opts: Ru
       : '';
 
     if (fresh.length === 0) {
-      await (ch as TextChannel).send({
-        content: `${mention}No new free plots for ${hc.dataCenter}/${hc.worlds.join(', ')} in ${hc.districts.join(',')}`,
-      });
+      if (ch.type === ChannelType.GuildForum) {
+        await (ch as ForumChannel).threads.create({
+          name: 'No free plots',
+          message: {
+            content: `${mention}No new free plots for ${hc.dataCenter}/${hc.worlds.join(', ')} in ${hc.districts.join(',')}`,
+          },
+        });
+      } else if ('send' in ch) {
+        await (ch as TextChannel).send({
+          content: `${mention}No new free plots for ${hc.dataCenter}/${hc.worlds.join(', ')} in ${hc.districts.join(',')}`,
+        });
+      }
       return 1;
     }
 
+    if (ch.type === ChannelType.GuildForum) {
+      const byDistrict = new Map<string, typeof fresh>();
+      for (const p of fresh) {
+        const arr = byDistrict.get(p.district) ?? [];
+        arr.push(p);
+        byDistrict.set(p.district, arr);
+      }
+      let sent = 0;
+      for (const [district, list] of byDistrict) {
+        const first = list[0]!;
+        const { embed, attachment } = plotEmbed(first);
+        const thread = await (ch as ForumChannel).threads.create({
+          name: district,
+          message: { content: mention, embeds: [embed], files: attachment ? [attachment] : [] },
+        });
+        sent++;
+        for (const p of list.slice(1)) {
+          const { embed: e, attachment: a } = plotEmbed(p);
+          await thread.send({ content: mention, embeds: [e], files: a ? [a] : [] });
+          sent++;
+        }
+      }
+      return sent;
+    }
+
+    if (!('send' in ch)) return 0;
+
     let sent = 0;
     for (const p of fresh.slice(0, 10)) {
-      await (ch as TextChannel).send({ content: mention, embeds: [plotEmbed(p)] });
+      const { embed, attachment } = plotEmbed(p);
+      await (ch as TextChannel).send({ content: mention, embeds: [embed], files: attachment ? [attachment] : [] });
       sent++;
     }
     if (fresh.length > 10) {

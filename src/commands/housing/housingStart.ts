@@ -1,10 +1,8 @@
 import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
+  ChannelType,
   MessageFlags,
   type ChatInputCommandInteraction,
-  type TextChannel,
+  type ForumChannel,
 } from 'discord.js';
 import { configManager } from '../../handlers/configHandler.js';
 import { HousingStart } from '../../schemas/housing.js';
@@ -15,7 +13,7 @@ const provider = new PaissaProvider();
 
 export default {
   name: 'start',
-  description: 'Post a paginated list of free housing plots',
+  description: 'Post a list of free housing plots grouped by district',
   async execute(interaction: ChatInputCommandInteraction) {
     const guildID = interaction.guildId;
     if (!guildID) {
@@ -33,10 +31,12 @@ export default {
     const hc = ok.data;
 
     const ch = await interaction.client.channels.fetch(hc.channelId).catch(() => null);
-    if (!ch || !('send' in ch)) {
-      await interaction.reply({ content: 'Configured channel could not be found.', flags: MessageFlags.Ephemeral });
+    if (!ch || ch.type !== ChannelType.GuildForum) {
+      await interaction.reply({ content: 'Configured channel could not be found or is not a forum.', flags: MessageFlags.Ephemeral });
       return;
     }
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const plots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
     for (const world of hc.worlds) {
@@ -45,35 +45,36 @@ export default {
     }
 
     if (plots.length === 0) {
-      await interaction.reply({ content: 'No free plots available.', flags: MessageFlags.Ephemeral });
+      await interaction.editReply({ content: 'No free plots available.' });
       return;
     }
 
-    const embeds = plots.map(plotEmbed);
-    let page = 0;
-
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId('housing:prev').setLabel('Prev').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('housing:next').setLabel('Next').setStyle(ButtonStyle.Secondary),
-    );
-
-    const msg = await (ch as TextChannel).send({
-      embeds: [embeds[page]!],
-      components: embeds.length > 1 ? [row] : [],
-    });
-
-    if (embeds.length > 1) {
-      const collector = msg.createMessageComponentCollector({ time: 5 * 60_000 });
-      collector.on('collect', async i => {
-        if (i.customId === 'housing:prev') {
-          page = (page - 1 + embeds.length) % embeds.length;
-        } else if (i.customId === 'housing:next') {
-          page = (page + 1) % embeds.length;
-        }
-        await i.update({ embeds: [embeds[page]!] });
-      });
+    const byDistrict = new Map<string, typeof plots>();
+    for (const p of plots) {
+      const arr = byDistrict.get(p.district) ?? [];
+      arr.push(p);
+      byDistrict.set(p.district, arr);
     }
 
-    await interaction.reply({ content: `Posted ${embeds.length} plots to <#${hc.channelId}>`, flags: MessageFlags.Ephemeral });
+    let total = 0;
+    for (const [district, list] of byDistrict) {
+      const first = list[0]!;
+      const { embed, attachment } = plotEmbed(first);
+      const thread = await (ch as ForumChannel).threads.create({
+        name: district,
+        message: {
+          embeds: [embed],
+          files: attachment ? [attachment] : [],
+        },
+      });
+
+      for (const p of list.slice(1)) {
+        const { embed: e, attachment: a } = plotEmbed(p);
+        await thread.send({ embeds: [e], files: a ? [a] : [] });
+      }
+      total += list.length;
+    }
+
+    await interaction.editReply({ content: `Posted ${total} plots across ${byDistrict.size} districts to <#${hc.channelId}>` });
   }
 };
