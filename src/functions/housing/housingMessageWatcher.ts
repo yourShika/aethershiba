@@ -96,7 +96,7 @@ export function startHousingMessageWatcher(client: Client) {
       logger.error('Unerwarteter Fehler im HousingMessageWatcher-Tick:', err);
     } finally {
       const dur = Date.now() - startedAt;
-      logger.info(`Watcher-Tick beendet (Dauer ${dur}ms, geprüft=${checked}, entfernt=${removed}, geändert=${changed})`);
+      //logger.info(`Watcher-Tick beendet (Dauer ${dur}ms, geprüft=${checked}, entfernt=${removed}, geändert=${changed})`);
       isTickRunning = false;
     }
   }, intervalMs);

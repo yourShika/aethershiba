@@ -27,6 +27,45 @@ function plotHash(p: Plot): string {
   return JSON.stringify(p);
 }
 
+function splitCommalist(input: string): string[] {
+  const seen = new Set<string>();
+  for (const raw of input.split(',')) {
+    const s = raw.trim();
+    if (!s) continue;
+    const key = s.toLowerCase();
+    if (!seen.has(key)) seen.add(key);
+  }
+  return Array.from(seen).map(k => {
+    // Alles in lowercase zurückgeben
+    return k;
+  });
+}
+
+function buildAutocompleteChoices(
+  currentValue: string,
+  allOptions: string[],
+  limit = 25
+): { name: string; value: string }[] {
+  // Teile nur an Kommas – NICHT an Spaces, damit „Lavender Beds“ intakt bleibt
+  const parts = currentValue.split(',');
+  const lastRaw = parts.pop() ?? '';
+  const last = lastRaw.trim();
+
+  const alreadyRaw = parts.map(s => s.trim()).filter(Boolean);
+  // case-insensitive Dedupe für already
+  const already = Array.from(new Set(alreadyRaw.map(a => a.toLowerCase())));
+
+  const choices = allOptions
+    .filter(opt => !already.includes(opt.toLowerCase()))
+    .filter(opt => opt.toLowerCase().startsWith(last.toLowerCase()))
+    .slice(0, limit);
+
+  // Prefix = bereits gewählte (im Original, mit Komma+Space getrennt)
+  const prefix = alreadyRaw.length ? alreadyRaw.join(', ') + (lastRaw.length ? ', ' : ', ') : '';
+
+  return choices.map(opt => ({ name: opt, value: prefix + opt }));
+}
+
 export default {
   name: 'start',
   description: 'Post a list of free housing plots grouped by district',
@@ -95,14 +134,34 @@ export default {
         return;
       }
 
-      const worlds = worldsStr.split(/[,\s]+/).filter(Boolean) as [string, ...string[]];
-      const districts = districtsStr.split(/[,\s]+/).filter(Boolean) as [string, ...string[]];
+      const worlds = splitCommalist(worldsStr);
+      const districts = splitCommalist(districtsStr);
+
+      if (worlds.length === 0 || districts.length === 0) {
+        await interaction.reply({
+          content: 'Please provide at least one world and one district (comma-separated).',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      const validWorlds = await getWorldNamesByDC(dc);
+      const invalid = worlds.filter(w => !validWorlds.some(v => v.toLowerCase() === w.toLowerCase()));
+      if (invalid.length > 0 ) {
+        await interaction.reply({
+          content:
+            `Some worlds do not belong to **${dc}**: ${invalid.join(', ')}\n` +
+            `Valid worlds for ${dc} are: ${validWorlds.join(', ')}`,
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
 
       hc = {
         enabled: true,
         dataCenter: dc,
-        worlds,
-        districts,
+        worlds: worlds as [string, ...string[]],
+        districts: districts as [string, ...string[]],
         channelId: chOpt.id,
       };
     }
@@ -186,38 +245,24 @@ export default {
 
     await interaction.editReply({ content: `Posted ${total} plots across ${byDistrict.size} districts to <#${hc.channelId}>` });
   },
+
   async autocomplete(interaction: AutocompleteInteraction) {
     const focused = interaction.options.getFocused(true);
+
     if (focused.name === 'worlds') {
       const dc = interaction.options.getString('datacenter');
       if (!dc) {
-        await interaction.respond([]);
+        await interaction.respond([]); // erst Datacenter wählen
         return;
       }
-      const parts = focused.value.split(/[,\s]+/);
-      const last = parts.pop() ?? '';
-      const already = parts.filter(Boolean);
       const worlds = await getWorldNamesByDC(dc);
-      const choices = worlds
-        .filter(w => !already.some(a => a.toLowerCase() === w.toLowerCase()))
-        .filter(w => w.toLowerCase().startsWith(last.toLowerCase()))
-        .slice(0, 25);
-      const prefix = already.length ? already.join(', ') + ', ' : '';
-      await interaction.respond(choices.map(w => ({ name: w, value: prefix + w })));
+      await interaction.respond(buildAutocompleteChoices(focused.value, worlds));
       return;
     }
 
     if (focused.name === 'districts') {
-      const parts = focused.value.split(/[,\s]+/);
-      const last = parts.pop() ?? '';
-      const already = parts.filter(Boolean);
       const options = DISTRICT_OPTIONS.map(d => d.value);
-      const choices = options
-        .filter(d => !already.some(a => a.toLowerCase() === d.toLowerCase()))
-        .filter(d => d.toLowerCase().startsWith(last.toLowerCase()))
-        .slice(0, 25);
-      const prefix = already.length ? already.join(', ') + ', ' : '';
-      await interaction.respond(choices.map(d => ({ name: d, value: prefix + d })));
+      await interaction.respond(buildAutocompleteChoices(focused.value, options));
       return;
     }
 
