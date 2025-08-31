@@ -40,7 +40,7 @@ export function register(client: Client) {
                 .setMaxValues(1)
             );
             const rows: any[] = [...interaction.message.components];
-            rows[1] = worldRow;
+            rows[0] = worldRow;
             await interaction.update({ components: rows });
           }
           break;

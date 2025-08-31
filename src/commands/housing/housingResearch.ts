@@ -13,7 +13,7 @@ import { DATACENTERS, DISTRICT_OPTIONS } from '../../const/housing/housing';
 
 const builder = new SlashCommandSubcommandBuilder()
     .setName('research')
-    .setDescription('Recherchiere interaktiv in einer DM')
+    .setDescription('Recherchiere interaktiv im Chat')
 
 export default {
     name: builder.name,
@@ -21,22 +21,11 @@ export default {
     async execute(interaction: ChatInputCommandInteraction) {
         if (interaction.options.getSubcommand(true) !== builder.name) return;
 
-        await interaction.reply({ content: 'Ich habe dir eine DM Geschickt', flags: MessageFlags.Ephemeral });
-        const dm = await interaction.user.createDM();
-
         const dcRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
             new StringSelectMenuBuilder()
                 .setCustomId('research:dc')
                 .setPlaceholder('Datacenter wählen')
                 .addOptions(DATACENTERS.map(d => new StringSelectMenuOptionBuilder().setLabel(d).setValue(d)))
-                .setMinValues(1)
-                .setMaxValues(1),
-        );
-
-        const worldRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-            new StringSelectMenuBuilder()
-                .setCustomId('research:world')
-                .setPlaceholder('Welt wählen')
                 .setMinValues(1)
                 .setMaxValues(1),
         );
@@ -84,6 +73,10 @@ export default {
                 .setStyle(ButtonStyle.Primary),
         );
 
-        await dm.send({ content: 'Housing Research - wähle Filter:', components: [dcRow, worldRow, distRow, fcRow, sizeRow, goRow]});
+        await interaction.reply({
+            content: 'Housing Research - wähle Filter:',
+            components: [dcRow, distRow, fcRow, sizeRow, goRow],
+            flags: MessageFlags.Ephemeral,
+        });
     },
 };
