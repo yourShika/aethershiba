@@ -238,29 +238,6 @@ export function register(client: Client) {
                         await transientReply(interaction, 'Planung noch nicht implementiert.');
                     }
                     break;
-                case 'cancel':
-                    if (interaction.isButton()) {
-                        const msgId = getDraft(key)?.messageId;
-                        const cfg = await configManager.get(interaction.guildId);
-                        const h = (cfg['housing'] as any) ?? {};
-                        const patch: any = {
-                            enabled: Boolean(h.enabled),
-                            dataCenter: h.dataCenter,
-                            worlds: Array.isArray(h.worlds) ? h.worlds : h.world ? [h.world] : [],
-                            districts: h.districts ?? [],
-                            channelId: h.channelId,
-                            timesPerDay: h.timesPerDay,
-                            intervalMinutes: h.intervalMinutes,
-                            pingUserId: h.pingUserId,
-                            pingRoleId: h.pingRoleId,
-                        };
-                        if (msgId) patch.messageId = msgId;
-                        setDraft(key, patch);
-                        await interaction.deferUpdate();
-                        await refreshSummary(interaction, key);
-                        await transientReply(interaction, 'Änderungen verworfen.');
-                    }
-                    break;
                 default:
                     logger.warn(`Unhandled housing interaction: ${customId}`);
                     if (interaction.isRepliable()) {

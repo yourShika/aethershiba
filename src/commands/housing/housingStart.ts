@@ -13,8 +13,13 @@ import { DATACENTERS, DISTRICT_OPTIONS } from '../../const/housing/housing.js';
 import { z } from 'zod';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import type { Plot } from '../../functions/housing/housingProvider.paissa.js';
 
 const provider = new PaissaProvider();
+
+function plotKey(p: Plot): string {
+  return [p.dataCenter, p.world, p.district, p.ward, p.plot].join(':');
+}
 
 export default {
   name: 'start',
@@ -121,27 +126,23 @@ export default {
       byDistrict.set(p.district, arr);
     }
 
-    const categorized: Record<string, typeof plots> = {};
-    for (const [district, list] of byDistrict) {
-      categorized[district] = list;
-    }
-    const filePath = path.join(process.cwd(), 'src', 'guildconfig', 'housing_messages.json');
-    let existing: Record<string, Record<string, typeof plots>> = {};
-    try {
-      const raw = await readFile(filePath, 'utf8');
-      existing = JSON.parse(raw);
-    } catch {
-      existing = {};
-    }
-    existing[guildID] = categorized;
-    await writeFile(filePath, JSON.stringify(existing, null, 2), 'utf8');
-
     const mention = [
       hc.pingUserId ? `<@${hc.pingUserId}>` : null,
       hc.pingRoleId ? `<@&${hc.pingRoleId}>` : null,
     ]
       .filter(Boolean)
       .join(' ');
+    const filePath = path.join(process.cwd(), 'src', 'guildconfig', 'housing_messages.json');
+    let store: Record<string, { channelId: string; threads: Record<string, string>; messages: Record<string, { threadId: string; messageId: string }> }> = {};
+    try {
+      const raw = await readFile(filePath, 'utf8');
+      store = JSON.parse(raw);
+    } catch {
+      store = {};
+    }
+
+    const rec = { channelId: hc.channelId, threads: {} as Record<string, string>, messages: {} as Record<string, { threadId: string; messageId: string }> };
+    store[guildID] = rec;
 
     let total = 0;
     for (const [district, list] of byDistrict) {
@@ -153,15 +154,21 @@ export default {
         name: district,
         message: msg,
       });
+      rec.threads[district] = thread.id;
+      const starter = await thread.fetchStarterMessage();
+      rec.messages[plotKey(first)] = { threadId: thread.id, messageId: starter?.id ?? '' };
 
       for (const p of list.slice(1)) {
         const { embed: e, attachment: a } = plotEmbed(p);
         const m: any = { embeds: [e], files: a ? [a] : [] };
         if (mention) m.content = mention;
-        await thread.send(m);
+        const sent = await thread.send(m);
+        rec.messages[plotKey(p)] = { threadId: thread.id, messageId: sent.id };
       }
       total += list.length;
     }
+
+    await writeFile(filePath, JSON.stringify(store, null, 2), 'utf8');
 
     await interaction.editReply({ content: `Posted ${total} plots across ${byDistrict.size} districts to <#${hc.channelId}>` });
   }

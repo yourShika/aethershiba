@@ -1,7 +1,7 @@
 import type { Client } from 'discord.js';
 import { configManager } from '../../handlers/configHandler';
 import { HousingRequired } from '../../schemas/housing';
-import { runHousingCheckt } from './housingRunner';
+import { refreshHousing } from './housingRefresh';
 import { logError } from '../../handlers/errorHandler.js';
 
 type S = { last?: number; runs: number; day: string};
@@ -35,7 +35,7 @@ export function startHousingScheduler(client: Client) {
                 const capOK = st.runs < req.data.timesPerDay;
 
                 if (gapOK && capOK) {
-                    await runHousingCheckt(client, guildID);
+                    await refreshHousing(client, guildID);
                     st.last = now;
                     st.runs += 1;
                     state.set(guildID, st);

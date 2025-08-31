@@ -133,10 +133,6 @@ async function handle(interaction: ChatInputCommandInteraction) {
       .setCustomId(PREFIX + "schedule")
       .setLabel("Schedule…")
       .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(PREFIX + "cancel")
-      .setLabel("Cancel")
-      .setStyle(ButtonStyle.Secondary),
   );
   // Discord limits messages to 5 action rows, so we split the reply
   // into two messages to avoid hitting the limit.
