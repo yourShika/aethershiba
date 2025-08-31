@@ -62,7 +62,7 @@ export default {
     for (const [district, list] of byDistrict) {
       categorized[district] = list;
     }
-    const filePath = path.join(process.cwd(), 'housing_messages.json');
+    const filePath = path.join(process.cwd(), 'src', 'guildconfig', 'housing_messages.json');
     let existing: Record<string, Record<string, typeof plots>> = {};
     try {
       const raw = await readFile(filePath, 'utf8');
