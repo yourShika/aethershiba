@@ -30,20 +30,6 @@ export default {
                 .setMaxValues(1),
         );
 
-        const worldRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-            new StringSelectMenuBuilder()
-                .setCustomId('research:world')
-                .setPlaceholder('Welt wählen')
-                .addOptions(
-                    new StringSelectMenuOptionBuilder()
-                        .setLabel('Bitte Datacenter wählen')
-                        .setValue('placeholder'),
-                )
-                .setMinValues(1)
-                .setMaxValues(1)
-                .setDisabled(true),
-        );
-
         const distRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
             new StringSelectMenuBuilder()
                 .setCustomId('research:district')
@@ -89,7 +75,7 @@ export default {
 
         await interaction.reply({
             content: 'Housing Research - wähle Filter:',
-            components: [dcRow, worldRow, distRow, fcRow, sizeRow, goRow],
+            components: [dcRow, distRow, fcRow, sizeRow, goRow],
             flags: MessageFlags.Ephemeral,
         });
     },
