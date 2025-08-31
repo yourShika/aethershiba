@@ -6,6 +6,8 @@ import {
     ChatInputCommandInteraction,
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
+    ButtonBuilder,
+    ButtonStyle,
 } from 'discord.js';
 import { DATACENTERS, DISTRICT_OPTIONS } from '../../const/housing/housing';
 
@@ -31,6 +33,14 @@ export default {
                 .setMaxValues(1),
         );
 
+        const worldRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId('research:world')
+                .setPlaceholder('Welt wählen')
+                .setMinValues(1)
+                .setMaxValues(1),
+        );
+
         const distRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
             new StringSelectMenuBuilder()
                 .setCustomId('research:district')
@@ -40,6 +50,40 @@ export default {
                 .setMaxValues(DISTRICT_OPTIONS.length),
         );
 
-        await dm.send({ content: 'Housing Research - wähle Filter:', components: [dcRow, distRow ]});
+        const fcRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId('research:fc')
+                .setPlaceholder('FC Only?')
+                .addOptions(
+                    new StringSelectMenuOptionBuilder().setLabel('Beliebig').setValue('any'),
+                    new StringSelectMenuOptionBuilder().setLabel('FC only').setValue('true'),
+                    new StringSelectMenuOptionBuilder().setLabel('Private only').setValue('false'),
+                )
+                .setMinValues(1)
+                .setMaxValues(1),
+        );
+
+        const sizeRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId('research:size')
+                .setPlaceholder('Hausgröße')
+                .addOptions(
+                    new StringSelectMenuOptionBuilder().setLabel('Beliebig').setValue('any'),
+                    new StringSelectMenuOptionBuilder().setLabel('S').setValue('S'),
+                    new StringSelectMenuOptionBuilder().setLabel('M').setValue('M'),
+                    new StringSelectMenuOptionBuilder().setLabel('L').setValue('L'),
+                )
+                .setMinValues(1)
+                .setMaxValues(1),
+        );
+
+        const goRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+                .setCustomId('research:go')
+                .setLabel('Suchen')
+                .setStyle(ButtonStyle.Primary),
+        );
+
+        await dm.send({ content: 'Housing Research - wähle Filter:', components: [dcRow, worldRow, distRow, fcRow, sizeRow, goRow]});
     },
 };

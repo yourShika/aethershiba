@@ -1,6 +1,7 @@
 import type { Client } from 'discord.js';
 import * as ready from './ready.js';
 import * as housingInteraction from './housing/housingInteraction.js';
+import * as housingResearchInteraction from './housing/housingResearchInteraction.js';
 import * as interactionCreate from './interactionCreate.js';
 
 /**
@@ -9,6 +10,7 @@ import * as interactionCreate from './interactionCreate.js';
 export function registerEvents(client: Client) {
     ready.register(client);
     housingInteraction.register(client);
+    housingResearchInteraction.register(client);
     interactionCreate.register(client);
 }
 
