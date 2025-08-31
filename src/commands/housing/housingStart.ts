@@ -21,6 +21,10 @@ function plotKey(p: Plot): string {
   return [p.dataCenter, p.world, p.district, p.ward, p.plot].join(':');
 }
 
+function plotHash(p: Plot): string {
+  return JSON.stringify(p);
+}
+
 export default {
   name: 'start',
   description: 'Post a list of free housing plots grouped by district',
@@ -133,7 +137,7 @@ export default {
       .filter(Boolean)
       .join(' ');
     const filePath = path.join(process.cwd(), 'src', 'guildconfig', 'housing_messages.json');
-    let store: Record<string, { channelId: string; threads: Record<string, string>; messages: Record<string, { threadId: string; messageId: string }> }> = {};
+    let store: Record<string, { channelId: string; threads: Record<string, string>; messages: Record<string, { threadId: string; messageId: string; hash: string }> }> = {};
     try {
       const raw = await readFile(filePath, 'utf8');
       store = JSON.parse(raw);
@@ -141,31 +145,38 @@ export default {
       store = {};
     }
 
-    const rec = { channelId: hc.channelId, threads: {} as Record<string, string>, messages: {} as Record<string, { threadId: string; messageId: string }> };
+    const rec = store[guildID] ?? { channelId: hc.channelId, threads: {}, messages: {} };
+    rec.channelId = hc.channelId;
     store[guildID] = rec;
 
     let total = 0;
     for (const [district, list] of byDistrict) {
-      const first = list[0]!;
-      const { embed, attachment } = plotEmbed(first);
-      const msg: any = { embeds: [embed], files: attachment ? [attachment] : [] };
-      if (mention) msg.content = mention;
-      const thread = await (ch as ForumChannel).threads.create({
-        name: district,
-        message: msg,
-      });
-      rec.threads[district] = thread.id;
-      const starter = await thread.fetchStarterMessage();
-      rec.messages[plotKey(first)] = { threadId: thread.id, messageId: starter?.id ?? '' };
+      let threadId = rec.threads[district];
+      let thread: ForumChannel | any = threadId
+        ? await interaction.client.channels.fetch(threadId).catch(() => null)
+        : null;
 
-      for (const p of list.slice(1)) {
-        const { embed: e, attachment: a } = plotEmbed(p);
-        const m: any = { embeds: [e], files: a ? [a] : [] };
-        if (mention) m.content = mention;
-        const sent = await thread.send(m);
-        rec.messages[plotKey(p)] = { threadId: thread.id, messageId: sent.id };
+      for (const p of list) {
+        const key = plotKey(p);
+        if (rec.messages[key]) continue;
+
+        if (!thread) {
+          const { embed, attachment } = plotEmbed(p);
+          const msg: any = { embeds: [embed], files: attachment ? [attachment] : [] };
+          if (mention) msg.content = mention;
+          thread = await (ch as ForumChannel).threads.create({ name: district, message: msg });
+          rec.threads[district] = thread.id;
+          const starter = await thread.fetchStarterMessage();
+          rec.messages[key] = { threadId: thread.id, messageId: starter?.id ?? '', hash: plotHash(p) };
+        } else {
+          const { embed, attachment } = plotEmbed(p);
+          const m: any = { embeds: [embed], files: attachment ? [attachment] : [] };
+          if (mention) m.content = mention;
+          const sent = await thread.send(m);
+          rec.messages[key] = { threadId: thread.id, messageId: sent.id, hash: plotHash(p) };
+        }
+        total++;
       }
-      total += list.length;
     }
 
     await writeFile(filePath, JSON.stringify(store, null, 2), 'utf8');

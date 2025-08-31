@@ -11,7 +11,7 @@ export default {
       return;
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const { added, removed } = await refreshHousing(interaction.client, guildID);
-    await interaction.editReply({ content: `Housing refreshed. ${added} added, ${removed} removed.` });
+    const { added, removed, updated } = await refreshHousing(interaction.client, guildID);
+    await interaction.editReply({ content: `Housing refreshed. ${added} added, ${removed} removed, ${updated} updated.` });
   }
 };
