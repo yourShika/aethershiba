@@ -1,17 +1,6 @@
 import { EmbedBuilder } from "discord.js";
 import type { Plot } from "../../functions/housing/housingProvider.paissa";
-
-/**
- * Mapping of housing districts to representative images.
- * The URLs point to publicly available images of each district.
- */
-const DISTRICT_IMAGES: Record<string, string> = {
-    'Mist': 'https://img.finalfantasyxiv.com/lds/pc/global/images/housing/mist.jpg',
-    'The Lavender Beds': 'https://img.finalfantasyxiv.com/lds/pc/global/images/housing/lavenderbeds.jpg',
-    'The Goblet': 'https://img.finalfantasyxiv.com/lds/pc/global/images/housing/goblet.jpg',
-    'Shirogane': 'https://img.finalfantasyxiv.com/lds/pc/global/images/housing/shirogane.jpg',
-    'Empyreum': 'https://img.finalfantasyxiv.com/lds/pc/global/images/housing/empyreum.jpg',
-};
+import { DISTRICT_IMAGES } from "../../const/housing/housing";
 
 /**
  * Builds an embed describing a housing plot.

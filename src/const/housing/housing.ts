@@ -7,3 +7,11 @@ export const DISTRICT_OPTIONS = [
     { label: 'Shirogane', value: 'Shirogane' },
     { label: 'Empyreum', value: 'Empyreum' },
 ];
+
+export const DISTRICT_IMAGES: Record<string, string> = {
+    'Mist': '../../img/housing/mist_district_discord.png',
+    'The Lavender Beds': '../../img/housing/lavender_beds_discord.png',
+    'The Goblet': '../../img/housing/the_goblet_discord.png',
+    'Shirogane': '../../img/housing/shirogane_discord.png',
+    'Empyreum': '../../img/housing/empyreum_discord.png',
+};
