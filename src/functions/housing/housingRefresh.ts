@@ -20,6 +20,24 @@ type MsgRecord = {
   messages: Record<string, { threadId: string; messageId: string }>;
 };
 
+async function pruneMissingMessages(client: Client, rec: MsgRecord): Promise<number> {
+  let removed = 0;
+  for (const [key, info] of Object.entries(rec.messages)) {
+    const thread = await client.channels.fetch(info.threadId).catch(() => null);
+    if (!thread || !thread.isTextBased()) {
+      delete rec.messages[key];
+      removed++;
+      continue;
+    }
+    const msg = await thread.messages.fetch(info.messageId).catch(() => null);
+    if (!msg) {
+      delete rec.messages[key];
+      removed++;
+    }
+  }
+  return removed;
+}
+
 export async function refreshHousing(client: Client, guildID: string) {
   const config = await configManager.get(guildID);
   const h = (config['housing'] as any) ?? null;
@@ -40,6 +58,7 @@ export async function refreshHousing(client: Client, guildID: string) {
   rec.channelId = hc.channelId;
   store[guildID] = rec;
 
+  let removed = await pruneMissingMessages(client, rec);
   const allPlots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
   for (const world of hc.worlds) {
     const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
@@ -52,7 +71,6 @@ export async function refreshHousing(client: Client, guildID: string) {
     available.set(plotKey(p), p);
   }
 
-  let removed = 0;
   let updated = 0;
   for (const key of Object.keys(rec.messages)) {
     const info = rec.messages[key];
