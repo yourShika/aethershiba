@@ -21,7 +21,7 @@ export function plotEmbed(p: Plot) {
             { name: 'District', value: p.district, inline: true },
             { name: 'Price', value: p.price != null ? `${p.price.toLocaleString()} gil` : '-', inline: true },
             { name: 'Size', value: p.size ?? '-', inline: true },
-            { name: 'FC Only', value: p.fcOnly ? 'Yes' : 'No', inline: true },
+            { name: 'FC Available', value: p.ward <= 20 ? 'Yes' : 'No', inline: true },
         )
         .setFooter({ text: `${new Date().toLocaleString()} • ${status}` });
 

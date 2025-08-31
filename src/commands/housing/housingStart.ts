@@ -36,6 +36,8 @@ export default {
       return;
     }
 
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
     const plots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
     for (const world of hc.worlds) {
       const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
@@ -43,7 +45,7 @@ export default {
     }
 
     if (plots.length === 0) {
-      await interaction.reply({ content: 'No free plots available.', flags: MessageFlags.Ephemeral });
+      await interaction.editReply({ content: 'No free plots available.' });
       return;
     }
 
@@ -73,6 +75,6 @@ export default {
       total += list.length;
     }
 
-    await interaction.reply({ content: `Posted ${total} plots across ${byDistrict.size} districts to <#${hc.channelId}>`, flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: `Posted ${total} plots across ${byDistrict.size} districts to <#${hc.channelId}>` });
   }
 };

@@ -39,7 +39,17 @@ const WorldDetailZ = z.object({
 
 function normSize(s?: string): 'S'|'M'|'L'|undefined {
     const v = s?.toUpperCase();
-    return v === 'S' || v === 'M' || v === 'L' ? v : undefined;
+    if (!v) return undefined;
+    const map: Record<string, 'S'|'M'|'L'> = {
+        '0': 'S',
+        '1': 'S',
+        '2': 'M',
+        '3': 'L',
+        'S': 'S',
+        'M': 'M',
+        'L': 'L',
+    };
+    return map[v];
 }
 
 function normState(s?: string): LotteryState {
