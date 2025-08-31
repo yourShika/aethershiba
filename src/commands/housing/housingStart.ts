@@ -7,7 +7,7 @@ import {
   type TextChannel,
 } from 'discord.js';
 import { configManager } from '../../handlers/configHandler.js';
-import { HousingRequired } from '../../schemas/housing.js';
+import { HousingStart } from '../../schemas/housing.js';
 import { PaissaProvider } from '../../functions/housing/housingProvider.paissa.js';
 import { plotEmbed } from './embed.js';
 
@@ -25,7 +25,7 @@ export default {
 
     const config = await configManager.get(guildID);
     const h = (config['housing'] as any) ?? null;
-    const ok = HousingRequired.safeParse(h);
+    const ok = HousingStart.safeParse(h);
     if (!ok.success) {
       await interaction.reply({ content: 'Housing is not configured.', flags: MessageFlags.Ephemeral });
       return;

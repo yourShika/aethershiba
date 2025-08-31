@@ -15,6 +15,16 @@ export const housingPartial = z.object({
     pingRoleId: z.string().min(1).optional(),
 });
 
+// Minimal schema required for posting housing listings manually.
+// Scheduler-specific fields like timesPerDay/intervalMinutes are omitted.
+export const HousingStart = z.object({
+    enabled: z.literal(true),
+    dataCenter: z.string().min(1),
+    worlds: z.array(z.string().min(1)).nonempty(),
+    districts: z.array(z.string()).nonempty(),
+    channelId: z.string().min(1),
+});
+
 // Schema for required housing configuration options.
 // This is used when the housing feature is enabled.
 export const HousingRequired = z.object({
