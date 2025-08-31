@@ -14,10 +14,14 @@ function plotKey(p: Plot): string {
   return [p.dataCenter, p.world, p.district, p.ward, p.plot].join(':');
 }
 
+function plotHash(p: Plot): string {
+  return JSON.stringify(p);
+}
+
 type MsgRecord = {
   channelId: string;
   threads: Record<string, string>;
-  messages: Record<string, { threadId: string; messageId: string }>;
+  messages: Record<string, { threadId: string; messageId: string; hash?: string }>;
 };
 
 async function pruneMissingMessages(client: Client, rec: MsgRecord): Promise<number> {
@@ -84,11 +88,15 @@ export async function refreshHousing(client: Client, guildID: string) {
       delete rec.messages[key];
       removed++;
     } else if (thread && thread.isTextBased()) {
-      const { embed, attachment } = plotEmbed(plot, now);
-      await thread.messages
-        .edit(info.messageId, { embeds: [embed], files: attachment ? [attachment] : [] })
-        .catch(() => {});
-      updated++;
+      const newHash = plotHash(plot);
+      if (info.hash !== newHash) {
+        const { embed, attachment } = plotEmbed(plot, now);
+        await thread.messages
+          .edit(info.messageId, { embeds: [embed], files: attachment ? [attachment] : [] })
+          .catch(() => {});
+        info.hash = newHash;
+        updated++;
+      }
     }
   }
 
@@ -113,12 +121,12 @@ export async function refreshHousing(client: Client, guildID: string) {
       thread = await (ch as ForumChannel).threads.create({ name: plot.district, message: msg });
       rec.threads[plot.district] = thread.id;
       const starter = await thread.fetchStarterMessage();
-      rec.messages[key] = { threadId: thread.id, messageId: starter?.id ?? '' };
+      rec.messages[key] = { threadId: thread.id, messageId: starter?.id ?? '', hash: plotHash(plot) };
     } else if (thread.isTextBased()) {
       const m: any = { embeds: [embed], files: attachment ? [attachment] : [] };
       if (mention) m.content = mention;
       const sent = await thread.send(m);
-      rec.messages[key] = { threadId: thread.id, messageId: sent.id };
+      rec.messages[key] = { threadId: thread.id, messageId: sent.id, hash: plotHash(plot) };
     }
     added++;
   }
