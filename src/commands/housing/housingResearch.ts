@@ -10,10 +10,11 @@ import {
     ButtonStyle,
 } from 'discord.js';
 import { DATACENTERS, DISTRICT_OPTIONS } from '../../const/housing/housing';
+import { HOUSING_PREFIX } from '../config/housingConfig.js';
 
 const builder = new SlashCommandSubcommandBuilder()
     .setName('research')
-    .setDescription('Recherchiere interaktiv in einer DM')
+    .setDescription('Recherchiere interaktiv im Chat')
 
 export default {
     name: builder.name,
@@ -21,29 +22,20 @@ export default {
     async execute(interaction: ChatInputCommandInteraction) {
         if (interaction.options.getSubcommand(true) !== builder.name) return;
 
-        await interaction.reply({ content: 'Ich habe dir eine DM Geschickt', flags: MessageFlags.Ephemeral });
-        const dm = await interaction.user.createDM();
+        const PREFIX = HOUSING_PREFIX + 'research:';
 
         const dcRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
             new StringSelectMenuBuilder()
-                .setCustomId('research:dc')
+                .setCustomId(PREFIX + 'dc')
                 .setPlaceholder('Datacenter wählen')
                 .addOptions(DATACENTERS.map(d => new StringSelectMenuOptionBuilder().setLabel(d).setValue(d)))
                 .setMinValues(1)
                 .setMaxValues(1),
         );
 
-        const worldRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-            new StringSelectMenuBuilder()
-                .setCustomId('research:world')
-                .setPlaceholder('Welt wählen')
-                .setMinValues(1)
-                .setMaxValues(1),
-        );
-
         const distRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
             new StringSelectMenuBuilder()
-                .setCustomId('research:district')
+                .setCustomId(PREFIX + 'district')
                 .setPlaceholder('District(s) wählen')
                 .addOptions(DISTRICT_OPTIONS.map(o => new StringSelectMenuOptionBuilder().setLabel(o.label).setValue(o.value)))
                 .setMinValues(0)
@@ -52,7 +44,7 @@ export default {
 
         const fcRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
             new StringSelectMenuBuilder()
-                .setCustomId('research:fc')
+                .setCustomId(PREFIX + 'fc')
                 .setPlaceholder('FC Only?')
                 .addOptions(
                     new StringSelectMenuOptionBuilder().setLabel('Beliebig').setValue('any'),
@@ -65,7 +57,7 @@ export default {
 
         const sizeRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
             new StringSelectMenuBuilder()
-                .setCustomId('research:size')
+                .setCustomId(PREFIX + 'size')
                 .setPlaceholder('Hausgröße')
                 .addOptions(
                     new StringSelectMenuOptionBuilder().setLabel('Beliebig').setValue('any'),
@@ -79,11 +71,15 @@ export default {
 
         const goRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder()
-                .setCustomId('research:go')
+                .setCustomId(PREFIX + 'go')
                 .setLabel('Suchen')
                 .setStyle(ButtonStyle.Primary),
         );
 
-        await dm.send({ content: 'Housing Research - wähle Filter:', components: [dcRow, worldRow, distRow, fcRow, sizeRow, goRow]});
+        await interaction.reply({
+            content: 'Housing Research - wähle Filter:',
+            components: [dcRow, distRow, fcRow, sizeRow, goRow],
+            flags: MessageFlags.Ephemeral,
+        });
     },
 };
