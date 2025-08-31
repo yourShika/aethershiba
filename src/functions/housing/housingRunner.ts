@@ -60,7 +60,8 @@ export async function runHousingCheckt(client: Client, guildID: string, opts: Ru
 
     let sent = 0;
     for (const p of fresh.slice(0, 10)) {
-      await (ch as TextChannel).send({ content: mention, embeds: [plotEmbed(p)] });
+      const { embed, attachment } = plotEmbed(p);
+      await (ch as TextChannel).send({ content: mention, embeds: [embed], files: attachment ? [attachment] : [] });
       sent++;
     }
     if (fresh.length > 10) {

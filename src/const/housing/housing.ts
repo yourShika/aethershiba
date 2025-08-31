@@ -8,10 +8,13 @@ export const DISTRICT_OPTIONS = [
     { label: 'Empyreum', value: 'Empyreum' },
 ];
 
+// Mapping of housing districts to their corresponding image filenames.
+// The actual path resolution and attachment handling is performed when
+// building the embed for a specific plot.
 export const DISTRICT_IMAGES: Record<string, string> = {
-    'Mist': '../../img/housing/mist_district_discord.png',
-    'The Lavender Beds': '../../img/housing/lavender_beds_discord.png',
-    'The Goblet': '../../img/housing/the_goblet_discord.png',
-    'Shirogane': '../../img/housing/shirogane_discord.png',
-    'Empyreum': '../../img/housing/empyreum_discord.png',
+    Mist: 'mist_district_discord.png',
+    'The Lavender Beds': 'lavender_beds_discord.png',
+    'The Goblet': 'the_goblet_discord.png',
+    Shirogane: 'shirogane_discord.png',
+    Empyreum: 'empyreum_discord.png',
 };
