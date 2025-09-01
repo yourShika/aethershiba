@@ -11,17 +11,17 @@
 <!-- Inhaltsverzeichnis / Pagination (Anker-Navigation) -->
 <nav aria-label="Seitennavigation">
   <p><strong>Inhalt:</strong>
-    <a href="#kurz">1</a> ·
-    <a href="#schnellstart">2</a> ·
-    <a href="#nutzung">4</a> ·
-    <a href="#apis">5</a> ·
-    <a href="#features">6</a> ·
-    <a href="#wie-wo">7</a> ·
-    <a href="#daten">8</a> ·
-    <a href="#lizenz">9</a> ·
-    <a href="#roadmap">10</a> ·
-    <a href="#faq">11</a> ·
-    <a href="#kontakt">12</a>
+    <a href="#kurz">Kurze Beschreibung</a> ·
+    <a href="#schnellstart">Schnellstart</a> ·
+    <a href="#nutzung">Nutzung</a> ·
+    <a href="#apis">API</a> ·
+    <a href="#features">Funktionen</a> ·
+    <a href="#wie-wo">Erkärung</a> ·
+    <a href="#daten">Daten</a> ·
+    <a href="#lizenz">Lizenz</a> ·
+    <a href="#roadmap">Roadmap</a> ·
+    <a href="#faq">FAQ</a> ·
+    <a href="#kontakt">Kontakt</a>
   </p>
 </nav>
 
