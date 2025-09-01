@@ -9,7 +9,8 @@ import { DISTRICT_IMAGES } from '../../const/housing/housing';
  * The embed contains information required by the user:
  * datacenter, world, district, price, size, FC availability and
  * an image of the district. The footer displays the time the embed
- * was generated and the current status of the plot.
+ * was generated and the current status of the plot. If the lottery
+ * phase end is known, the footer shows when the lottery is open until.
  */
 export function plotEmbed(p: Plot, refreshedAt?: Date) {
     const status = formatStatus(p);
@@ -23,7 +24,7 @@ export function plotEmbed(p: Plot, refreshedAt?: Date) {
             { name: '📏 Size', value: p.size ?? '-', inline: true },
             { name: '👥 FC Available', value: p.ward <= 20 ? 'Yes' : 'No', inline: true },
         )
-        .setFooter({ text: `Posted: ${new Date().toLocaleString()} •  Status: ${status}` });
+        .setFooter({ text: `Posted: ${new Date().toLocaleString()} • Status: ${status}` });
 
     if (p.lottery.entries != null) {
         embed.addFields({ name: '🎟️ Lotto Entries', value: String(p.lottery.entries), inline: true });
@@ -31,11 +32,6 @@ export function plotEmbed(p: Plot, refreshedAt?: Date) {
 
     if (p.lastUpdated != null) {
         embed.addFields({ name: '⏱️ Paissa API', value: new Date(p.lastUpdated).toLocaleString(), inline: true });
-    }
-
-    if (p.lottery.phaseUntil != null) {
-        const ts = Math.floor(p.lottery.phaseUntil / 1000);
-        embed.addFields({ name: '📅 Lotto Phase Until', value: `<t:${ts}:F>`, inline: true });
     }
 
     if (refreshedAt) {
@@ -55,12 +51,10 @@ export function plotEmbed(p: Plot, refreshedAt?: Date) {
 }
 
 function formatStatus(p: Plot): string {
-    switch (p.lottery.state) {
-        case 'preparation': return 'Vorbereitung';
-        case 'running': return `Verlosung läuft${p.lottery.endsAt ? ` bis ${p.lottery.endsAt}` : ''}`;
-        case 'results': return `Ergebnisse${p.lottery.winner != null ? ` - Gewinner: ${p.lottery.winner ? 'Ja' : 'Nein'}` : ''}`;
-        case 'none': return 'Verfügbar';
-        default: return '-';
+    if (p.lottery.phaseUntil != null) {
+        const ts = Math.floor(p.lottery.phaseUntil / 1000);
+        return `Lottery Open Until <t:${ts}:F>`;
     }
+    return 'Vorbereitung';
 }
 
