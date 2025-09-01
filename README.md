@@ -47,7 +47,6 @@ cd &lt;repo&gt;
 
 # Abhängigkeiten (Beispiel Node)
 npm install
-
 </code></pre>
 
 <ol start="3">
@@ -56,7 +55,6 @@ npm install
 
 <pre><code># Node (Beispiel)
 npm run start
-
 </code></pre>
 
 <hr>
