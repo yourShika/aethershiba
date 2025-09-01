@@ -35,8 +35,8 @@ const PlotZ = z.object({
     lottery_end: z.union([z.string(), z.number()]).optional(),
     lottery_winner: z.boolean().optional(),
     last_updated_time: z.union([z.number(), z.string()]).optional(),
-    lotto_entries: z.union([z.number(), z.string()]).optional(),
-    lotto_phase_until: z.union([z.number(), z.string()]).optional(),
+    lotto_entries: z.union([z.number(), z.string()]).nullish(),
+    lotto_phase_until: z.union([z.number(), z.string()]).nullish(),
 }).passthrough();
 
 const DistrictZ = z.object({
@@ -96,8 +96,8 @@ export class PaissaProvider {
             const lottery: Plot['lottery'] = { state };
             if (p.lottery_end !== undefined) lottery.endsAt = String(p.lottery_end);
             if (typeof p.lottery_winner === 'boolean') lottery.winner = p.lottery_winner;
-            if (p.lotto_entries !== undefined) lottery.entries = Number(p.lotto_entries);
-            if (p.lotto_phase_until !== undefined) lottery.phaseUntil = Number(p.lotto_phase_until) * 1000;
+            if (p.lotto_entries != null) lottery.entries = Number(p.lotto_entries);
+            if (p.lotto_phase_until != null) lottery.phaseUntil = Number(p.lotto_phase_until) * 1000;
 
             const item: Plot = {
                 dataCenter: detail.datacenter_name ?? dc,

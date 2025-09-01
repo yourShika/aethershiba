@@ -23,14 +23,14 @@ export function plotEmbed(p: Plot, refreshedAt?: Date) {
             { name: '📏 Size', value: p.size ?? '-', inline: true },
             { name: '👥 FC Available', value: p.ward <= 20 ? 'Yes' : 'No', inline: true },
         )
-        .setFooter({ text: `${new Date().toLocaleString()} • ${status}` });
+        .setFooter({ text: `Posted: ${new Date().toLocaleString()} •  Status: ${status}` });
 
     if (p.lottery.entries != null) {
         embed.addFields({ name: '🎟️ Lotto Entries', value: String(p.lottery.entries), inline: true });
     }
 
     if (p.lastUpdated != null) {
-        embed.addFields({ name: '⏱️ Last Updated', value: new Date(p.lastUpdated).toLocaleString(), inline: true });
+        embed.addFields({ name: '⏱️ Paissa API', value: new Date(p.lastUpdated).toLocaleString(), inline: true });
     }
 
     if (p.lottery.phaseUntil != null) {
