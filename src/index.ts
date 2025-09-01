@@ -6,7 +6,7 @@ import { logger } from './lib/logger.js';
 import { commands } from './handlers/commandInit.js';
 import { commandHandler } from './handlers/commandHandler.js';
 import { registerEvents } from './events/index.js';
-import { startHousingMessageWatcher } from './functions/housing/housingMessageWatcher.js';
+import { startHousingMessageWatcher } from './watchers/housingMessageWatcher.js';
 import { botConfig } from './config.js';
 
 // Ensure the Discord token is available. Without it the bot cannot start.

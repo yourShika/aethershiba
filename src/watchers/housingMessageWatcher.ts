@@ -1,7 +1,7 @@
 import { messageLink, type Client, ChannelType, type TextBasedChannel } from 'discord.js';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { logger } from '../../lib/logger';
+import { logger } from '../lib/logger';
 
 type MsgRecord = {
   channelId: string;
