@@ -8,7 +8,7 @@ import path from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 
 const provider = new PaissaProvider();
-const filePath = path.join(process.cwd(), 'src', 'guildconfig', 'housing_messages.json');
+const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
 
 function plotKey(p: Plot): string {
   return [p.dataCenter, p.world, p.district, p.ward, p.plot].join(':');
@@ -21,7 +21,10 @@ function plotHash(p: Plot): string {
 type MsgRecord = {
   channelId: string;
   threads: Record<string, string>;
-  messages: Record<string, { threadId: string; messageId: string; hash?: string }>;
+  messages: Record<
+    string,
+    { threadId: string; messageId: string; hash?: string; deleteAt?: number }
+  >;
 };
 
 async function pruneMissingMessages(client: Client, rec: MsgRecord): Promise<number> {
@@ -88,12 +91,25 @@ export async function refreshHousing(client: Client, guildID: string) {
       delete rec.messages[key];
       removed++;
     } else if (thread && thread.isTextBased()) {
+      if (plot.lottery.phaseUntil && plot.lottery.phaseUntil <= Date.now()) {
+        await thread.messages.delete(info.messageId).catch(() => {});
+        delete rec.messages[key];
+        removed++;
+        continue;
+      }
       const newHash = plotHash(plot);
+      const { embed, attachment } = plotEmbed(plot, now);
+      const opts: any = { embeds: [embed] };
+      if (info.hash !== newHash && attachment) {
+        opts.files = [attachment];
+      }
+      await thread.messages.edit(info.messageId, opts).catch(() => {});
+      if (plot.lottery.phaseUntil) {
+        info.deleteAt = plot.lottery.phaseUntil;
+      } else {
+        delete info.deleteAt;
+      }
       if (info.hash !== newHash) {
-        const { embed, attachment } = plotEmbed(plot, now);
-        await thread.messages
-          .edit(info.messageId, { embeds: [embed], files: attachment ? [attachment] : [] })
-          .catch(() => {});
         info.hash = newHash;
         updated++;
       }
@@ -121,12 +137,23 @@ export async function refreshHousing(client: Client, guildID: string) {
       thread = await (ch as ForumChannel).threads.create({ name: plot.district, message: msg });
       rec.threads[plot.district] = thread.id;
       const starter = await thread.fetchStarterMessage();
-      rec.messages[key] = { threadId: thread.id, messageId: starter?.id ?? '', hash: plotHash(plot) };
+      const starterId = starter?.id ?? '';
+      rec.messages[key] = {
+        threadId: thread.id,
+        messageId: starterId,
+        hash: plotHash(plot),
+        ...(plot.lottery.phaseUntil ? { deleteAt: plot.lottery.phaseUntil } : {}),
+      };
     } else if (thread.isTextBased()) {
       const m: any = { embeds: [embed], files: attachment ? [attachment] : [] };
       if (mention) m.content = mention;
       const sent = await thread.send(m);
-      rec.messages[key] = { threadId: thread.id, messageId: sent.id, hash: plotHash(plot) };
+      rec.messages[key] = {
+        threadId: thread.id,
+        messageId: sent.id,
+        hash: plotHash(plot),
+        ...(plot.lottery.phaseUntil ? { deleteAt: plot.lottery.phaseUntil } : {}),
+      };
     }
     added++;
   }

@@ -6,7 +6,10 @@ import { logger } from '../../lib/logger';
 type MsgRecord = {
   channelId: string;
   threads: Record<string, string>;
-  messages: Record<string, { threadId: string; messageId: string; hash?: string }>;
+  messages: Record<
+    string,
+    { threadId: string; messageId: string; hash?: string; deleteAt?: number }
+  >;
 };
 
 const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
@@ -50,20 +53,44 @@ export function startHousingMessageWatcher(client: Client) {
           });
 
           // Wenn kein Thread oder kein Textkanal: Eintrag entfernen
-          if (!thread || (thread.type !== ChannelType.PublicThread && thread.type !== ChannelType.PrivateThread && !('isTextBased' in thread && thread.isTextBased()))) {
+          if (
+            !thread ||
+            (thread.type !== ChannelType.PublicThread &&
+              thread.type !== ChannelType.PrivateThread &&
+              !('isTextBased' in thread && thread.isTextBased()))
+          ) {
             delete rec.messages[key];
             changed = true;
             removed++;
-            logger.info(`Thread fehlt/kein Textkanal → Eintrag entfernt (key=${key}, threadId=${info.threadId}, guildId=${guildId})`);
+            logger.info(
+              `Thread fehlt/kein Textkanal → Eintrag entfernt (key=${key}, threadId=${info.threadId}, guildId=${guildId})`
+            );
             continue;
           }
 
           const textChan = thread as TextBasedChannel;
 
+          // Prüfen, ob ein Ablaufdatum erreicht ist
+          if (info.deleteAt && Date.now() >= info.deleteAt) {
+            await textChan.messages.delete(info.messageId).catch((err) => {
+              logger.warn(
+                `Löschen abgelaufener Housing-Nachricht fehlgeschlagen (messageId=${info.messageId}, threadId=${info.threadId}): ${String(
+                  err
+                )}`
+              );
+            });
+            delete rec.messages[key];
+            changed = true;
+            removed++;
+            continue;
+          }
+
           // Nachricht holen
           const msg = await textChan.messages.fetch(info.messageId).catch((err) => {
             // kann normal sein (gelöscht), deshalb nur warnen – genauer entscheiden wir unten
-            logger.warn(`Fetch Message fehlgeschlagen (messageId=${info.messageId}, threadId=${info.threadId}): ${String(err)}`);
+            logger.warn(
+              `Fetch Message fehlgeschlagen (messageId=${info.messageId}, threadId=${info.threadId}): ${String(err)}`
+            );
             return null;
           });
 
