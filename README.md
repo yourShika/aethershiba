@@ -14,7 +14,6 @@
   <ul>
     <li>🧭 <a href="#kurz">Kurze Beschreibung</a> – Worum es geht & Architektur auf einen Blick.</li>
     <li>🚀 <a href="#schnellstart">Schnellstart</a> – Repo klonen & Bot starten (Beispiel Node/Python).</li>
-    <li>⌨️ <a href="#nutzung">Nutzung</a> – Wichtige Slash-Befehle im Alltag.</li>
     <li>🔌 <a href="#apis">APIs</a> – Welche Schnittstellen verwendet werden.</li>
     <li>🧩 <a href="#features">Aufgaben des Bots</a> – Implementiert & W.I.P-Funktionsliste.</li>
     <li>🛠️ <a href="#wie-wo">Erklärung: Was? Wie? Wo?</a> – Aufbau, Betrieb & Deployment.</li>
@@ -56,22 +55,6 @@ npm install
 <pre><code># Node (Beispiel)
 npm run start
 </code></pre>
-
-<hr>
-
-<h2 id="nutzung">⌨️ Nutzung (Befehlsbeispiele)</h2>
-<ul>
-  <li>🏠 <strong>/housing free</strong> – Zeigt freie Häuser pro Welt/Datenzentrum.</li>
-  <li>🔔 <strong>/market alarm add</strong> – Preisalarm für ein Item anlegen.</li>
-  <li>💱 <strong>/market deals</strong> – Potenzielle Arbitrage-Deals (30 Items).</li>
-  <li>📆 <strong>/reset when</strong> – Tägliche/Wöchentliche Reset-Infos.</li>
-  <li>🐉 <strong>/hunt watch</strong> – Notifikationen bei S-/A-Rank Hunts (falls Datenquelle aktiv).</li>
-  <li>🎰 <strong>/gs events</strong> – Gold Saucer Events & Erinnerungen.</li>
-  <li>🔗 <strong>/link account</strong> – Discord-Account mit Ingame-Char verknüpfen (Rollen via Reactions).</li>
-  <li>🗺️ <strong>/events plan</strong> – Raids/Schatzkarten-Events erstellen (mit Links/Bildern).</li>
-</ul>
-
-<hr>
 
 <h2 id="apis">🔌 Welche APIs werden genutzt?</h2>
 <ul>
