@@ -55,8 +55,8 @@ function normSize(s?: string): 'S'|'M'|'L'|undefined {
     if (!v) return undefined;
     const map: Record<string, 'S'|'M'|'L'> = {
         '0': 'S',
-        '1': 'S',
-        '2': 'M',
+        '1': 'M',
+        '2': 'L',
         '3': 'L',
         'S': 'S',
         'M': 'M',
