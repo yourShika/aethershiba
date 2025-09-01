@@ -11,7 +11,7 @@
 <!-- Inhaltsverzeichnis / Pagination (Anker-Navigation) -->
 <nav aria-label="Seitennavigation">
   <p><strong>Inhalt:</strong>
-    <a href="#kurz">Kurze Beschreibung</a><n> ·
+    <a href="#kurz">Kurze Beschreibung</a><nr> ·
     <a href="#schnellstart">Schnellstart</a> ·
     <a href="#nutzung">Nutzung</a> ·
     <a href="#apis">API</a> ·
