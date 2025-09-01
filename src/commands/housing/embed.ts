@@ -11,8 +11,17 @@ import { DISTRICT_IMAGES } from '../../const/housing/housing';
  * an image of the district. The footer displays the time the embed
  * was generated and the current status of the plot.
  */
+function inferSize(price?: number): 'S' | 'M' | 'L' | undefined {
+    if (price == null) return undefined;
+    if (price >= 40_000_000) return 'L';
+    if (price >= 16_000_000) return 'M';
+    if (price >= 3_000_000) return 'S';
+    return undefined;
+}
+
 export function plotEmbed(p: Plot, refreshedAt?: Date) {
     const status = formatStatus(p);
+    const size = inferSize(p.price) ?? p.size ?? '-';
     const embed = new EmbedBuilder()
         .setTitle(`🏠 ${p.world} - ${p.district} Ward ${p.ward} Plot ${p.plot}`)
         .addFields(
@@ -20,10 +29,10 @@ export function plotEmbed(p: Plot, refreshedAt?: Date) {
             { name: '🌐 World', value: p.world, inline: true },
             { name: '🏘️ District', value: p.district, inline: true },
             { name: '💰 Price', value: p.price != null ? `${p.price.toLocaleString()} gil` : '-', inline: true },
-            { name: '📏 Size', value: p.size ?? '-', inline: true },
+            { name: '📏 Size', value: size, inline: true },
             { name: '👥 FC Available', value: p.ward <= 20 ? 'Yes' : 'No', inline: true },
         )
-        .setFooter({ text: `Posted: ${new Date().toLocaleString()} •  Refreshed at: ${refreshedAt}` });
+        .setFooter({ text: `Posted: ${new Date().toLocaleString()} • Refreshed: ${refreshedAt?.toLocaleString() ?? '-'}` });
 
     if (p.lottery.entries != null) {
         embed.addFields({ name: '🎟️ Lotto Entries', value: String(p.lottery.entries), inline: true });
@@ -36,10 +45,6 @@ export function plotEmbed(p: Plot, refreshedAt?: Date) {
     if (p.lottery.phaseUntil != null) {
         const ts = Math.floor(p.lottery.phaseUntil / 1000);
         embed.addFields({ name: '📅 Lotto Phase Until', value: `<t:${ts}:F>`, inline: true });
-    }
-
-    if (refreshedAt) {
-        return refreshedAt.toLocaleString();
     }
 
     const imgFile = DISTRICT_IMAGES[p.district];
