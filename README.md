@@ -122,8 +122,8 @@ npm run start
 <hr>
 
 <h2 id="lizenz">📜 Lizenz</h2>
-<p><strong>Alle Rechte vorbehalten.</strong> Der gesamte Quellcode, die Dokumentation und alle zugehörigen Assets von <em>[Projektname]</em>
-unterliegen dem ausschließlichen Recht von <em>[Dein Name/Deine Organisation]</em>. Jede Nutzung, Vervielfältigung, Veränderung,
+<p><strong>Alle Rechte vorbehalten.</strong> Der gesamte Quellcode, die Dokumentation und alle zugehörigen Assets von <em>AetherShiba</em>
+unterliegen dem ausschließlichen Recht von <em>yourShika</em>. Jede Nutzung, Vervielfältigung, Veränderung,
 Verbreitung oder Veröffentlichung – ganz oder teilweise – ist ohne vorherige, ausdrückliche, schriftliche Zustimmung untersagt.</p>
 <p>Ausnahmen (z. B. für private Tests oder Beiträge) können individuell und widerruflich gestattet werden.
 Mit dem Einreichen eines Pull Requests räumst du uns das zeitlich und räumlich unbeschränkte, nicht-exklusive Recht ein,
