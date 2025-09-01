@@ -4,15 +4,25 @@ import { getWorldIdByName } from "./housingWorlds";
 export type LotteryState = 'none'|'preparation'|'running'|'results';
 
 export type Plot = {
-    dataCenter: string; 
-    world: string; 
+    dataCenter: string;
+    world: string;
     district: string;
-    ward: number; 
-    plot: number; 
-    price?: number; 
-    size?: 'S'|'M'|'L'; 
+    ward: number;
+    plot: number;
+    price?: number;
+    size?: 'S'|'M'|'L';
     fcOnly?: boolean;
-    lottery: { state: LotteryState; endsAt?: string; winner?: boolean };
+    /** Timestamp (ms) of the API's last update for this plot */
+    lastUpdated?: number;
+    lottery: {
+        state: LotteryState;
+        endsAt?: string;
+        winner?: boolean;
+        /** Number of lottery entries for the plot */
+        entries?: number;
+        /** Epoch timestamp (ms) when the current lottery phase ends */
+        phaseUntil?: number;
+    };
 };
 
 const PlotZ = z.object({
@@ -24,6 +34,9 @@ const PlotZ = z.object({
     lottery_state: z.union([z.string(), z.number()]).optional(),
     lottery_end: z.union([z.string(), z.number()]).optional(),
     lottery_winner: z.boolean().optional(),
+    last_updated_time: z.union([z.number(), z.string()]).optional(),
+    lotto_entries: z.union([z.number(), z.string()]).optional(),
+    lotto_phase_until: z.union([z.number(), z.string()]).optional(),
 }).passthrough();
 
 const DistrictZ = z.object({
@@ -83,6 +96,8 @@ export class PaissaProvider {
             const lottery: Plot['lottery'] = { state };
             if (p.lottery_end !== undefined) lottery.endsAt = String(p.lottery_end);
             if (typeof p.lottery_winner === 'boolean') lottery.winner = p.lottery_winner;
+            if (p.lotto_entries !== undefined) lottery.entries = Number(p.lotto_entries);
+            if (p.lotto_phase_until !== undefined) lottery.phaseUntil = Number(p.lotto_phase_until) * 1000;
 
             const item: Plot = {
                 dataCenter: detail.datacenter_name ?? dc,
@@ -99,6 +114,8 @@ export class PaissaProvider {
             if (sizeVal) item.size = sizeVal;
 
             if (typeof p.free_company_only === 'boolean') item.fcOnly = p.free_company_only;
+
+            if (p.last_updated_time !== undefined) item.lastUpdated = Number(p.last_updated_time) * 1000;
 
             out.push(item);
         }
