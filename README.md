@@ -1,69 +1,213 @@
-<h1 align="center">AetherShiba — Discord Bot for Final Fantasy XIV</h1>
+<!-- README for GitHub (pure HTML, no CSS) -->
+
+<h1 id="start" align="center">AetherShiba – FFXIV Discord Bot</h1>
 
 <p align="center">
-  <em>Smart alerts, market insights, and handy slash commands for Eorzea.</em><br/>
-  <a href="https://github.com/KamilBura/aerthershiba">Repository</a>
+  Nützliche Helferlein für Final Fantasy XIV: Housing-Scanner, Marktbrett-Tools, Event-Planung, Benachrichtigungen und mehr – alles direkt in Discord.
 </p>
 
-<hr/>
+<hr>
 
-<h2>✨ What AetherShiba Does</h2>
-<ul>
-  <li><strong>Daily Reset pings</strong>: Get a reminder at reset time (weeklies, dailies, custom checklists).</li>
-  <li><strong>Housing watch</strong>: Track <em>free plots</em> / lotteries opening per World, with district &amp; size filters.</li>
-  <li><strong>Market arbitrage (intra-World/DC)</strong>: See <em>what’s worth buying</em> and selling within your World or DC (price gaps, fees, taxes).</li>
-  <li><strong>Profile lookups</strong>: Slash commands to inspect player profiles, jobs, ilvl, glam, achievements (where available).</li>
-  <li><strong>Server-aware timezones</strong>: Converts reset times and alerts to your local timezone.</li>
-</ul>
+<!-- Inhaltsverzeichnis / Pagination (Anker-Navigation) -->
+<nav aria-label="Seitennavigation">
+  <p><strong>Inhalt:</strong>
+    <a href="#kurz">1</a> ·
+    <a href="#schnellstart">2</a> ·
+    <a href="#nutzung">4</a> ·
+    <a href="#apis">5</a> ·
+    <a href="#features">6</a> ·
+    <a href="#wie-wo">7</a> ·
+    <a href="#daten">8</a> ·
+    <a href="#lizenz">9</a> ·
+    <a href="#roadmap">10</a> ·
+    <a href="#faq">11</a> ·
+    <a href="#kontakt">12</a>
+  </p>
+</nav>
 
-<h3>🧭 Philosophy</h3>
+<hr>
+
+<h2 id="kurz">1) Kurze Beschreibung</h2>
 <p>
-  Keep it lean and Discord-first. No external dashboards planned right now—configuration lives in slash commands and server settings.
+  <strong>AetherShiba</strong> ist ein modularer Discord-Bot für FFXIV. Er liefert Housing-Verfügbarkeit je Datenzentrum,
+  beobachtet Marktpreise, erinnert an Resets und Events, hilft bei Hunts und bietet Community-Features wie Fashion-Report-Voting
+  oder Mini-Games. Architektur: leichtgewichtig, erweiterbar, mit klaren Modulen pro Feature.
 </p>
 
-<hr/>
+<p><em>Status-Übersicht:</em> <strong>Implementiert</strong> = produktionsreif · <strong>W.I.P</strong> = in Arbeit</p>
 
-<h2>📦 Setup (self-host)</h2>
+<p><a href="#start">↑ nach oben</a> · <a href="#schnellstart">nächster Abschnitt →</a></p>
+<hr>
+
+<h2 id="schnellstart">2) Schnellstart</h2>
+<ol>
+  <li><strong>Voraussetzungen:</strong> Discord-Server, Bot-Token, Node.js oder Python (je nach Implementierung), sowie optional API-Schlüssel (siehe <a href="#apis">APIs</a>).</li>
+  <li><strong>Installieren:</strong></li>
+</ol>
+
+<pre><code># Klone das Repo
+git clone &lt;DEIN-REPO-URL&gt;
+cd &lt;repo&gt;
+
+# Abhängigkeiten (Beispiel Node)
+npm install
+
+</code></pre>
+
+<ol start="3">
+  <li><strong>Konfigurieren:</strong> Lege eine <code>.env</code> an (siehe <a href="#konfiguration">Konfiguration</a>).</li>
+  <li><strong>Starten:</strong></li>
+</ol>
+
+<pre><code># Node (Beispiel)
+npm run start
+
+</code></pre>
+
+<p><a href="#kurz">← vorheriger Abschnitt</a> · <a href="#konfiguration">nächster Abschnitt →</a> · <a href="#start">↑ nach oben</a></p>
+<hr>
+
+<h2 id="konfiguration">3) Konfiguration</h2>
+<p>Erzeuge eine <code>.env</code> in der Projektwurzel mit u. a. folgenden Variablen (je nach Tech-Stack können Namen abweichen):</p>
+
+<pre><code># Pflicht
+DISCORD_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+</code></pre>
+
+<p>Tipp: Slash-Commands (Interactions) bei neuen Deploys ggf. neu registrieren.</p>
+
+<p><a href="#schnellstart">← vorheriger Abschnitt</a> · <a href="#nutzung">nächster Abschnitt →</a> · <a href="#start">↑ nach oben</a></p>
+<hr>
+
+<h2 id="apis">5) Welche APIs werden genutzt?</h2>
 <ul>
-  <li><code>W.I.P</code></li>
+  <li><strong>Discord API</strong> (Gateway, REST, Interactions/Slash Commands, OAuth2 für Account-Linking)</li>
+  <li><strong>Universalis</strong> (Marktbrett-Preise &amp; Historie)</li>
+  <li><strong>XIVAPI</strong> (Spiel-Daten wie Items, Jobs, Icons, ggf. Lodestone-Proxy)</li>
+  <li><strong>Lodestone</strong> (Charakter-/Free-Company-Daten; via offizielle Seiten/Community-Lösungen)</li>
+  <li><strong>Hunt-Daten</strong> (Community-Quellen, soweit verfügbar/zugelassen)</li>
+  <li><strong>Kalender/Benachrichtigung</strong> (z. B. interne Scheduler, Cron, Webhooks)</li>
 </ul>
 
-<hr/>
+<p><em>Hinweis:</em> Die konkrete Nutzung hängt von aktivierten Modulen/Schlüsseln ab.</p>
 
-<h2>🔐 Permissions &amp; Channels</h2>
+<p><a href="#nutzung">← vorheriger Abschnitt</a> · <a href="#features">nächster Abschnitt →</a> · <a href="#start">↑ nach oben</a></p>
+<hr>
+
+<h2 id="features">6) Aufgaben des Bots (Feature-Liste)</h2>
 <ul>
-  <li><code>W.I.P</code></li>
+  <li><strong>Listing von freien Häusern</strong> auf allen Datenzentren <strong>(Implementiert)</strong></li>
+  <li><strong>Gehilfen-Verfolgung</strong> (Verkaufs-Tracking deiner Retainer inkl. Benachrichtigungen) <strong>(W.I.P)</strong></li>
+  <li><strong>Daily- &amp; Weekly-Reset</strong> Benachrichtigungen, Event-Planung <strong>(W.I.P)</strong></li>
+  <li><strong>Marktbrett-Preisalarm</strong> (Auto-Alerts bei Zielpreis/Preisschwankung) <strong>(W.I.P)</strong></li>
+  <li><strong>Marktbrett-Deals</strong> (30 günstige Kauf/teurer Verkauf-Kandidaten zwischen Welten) <strong>(W.I.P)</strong></li>
+  <li><strong>Hunt-Notifikationen</strong> (S-/A-Rank Spawns, Integration zu Hunt-Linkshell-Daten, falls möglich) <strong>(W.I.P)</strong></li>
+  <li><strong>Gold Saucer Events</strong> (MGP-Events, Fashion-Report-Reminder mit Guide-Links) <strong>(W.I.P)</strong></li>
+  <li><strong>Accounts-Linking mit Discord</strong> (Rollen via Reactions, Mehrfach-Char-Linking via Lodestone/Codes) <strong>(W.I.P)</strong></li>
+  <li><strong>Fashion Report Guessing</strong> (Community-Voting/Predictions) <strong>(W.I.P)</strong></li>
+  <li><strong>Events-Planung</strong> (Raids, Schatzkarten; Guide-Links, Bilder) <strong>(W.I.P)</strong></li>
+  <li><strong>Triple Triad Minigame</strong> im Discord-Channel <strong>(W.I.P)</strong></li>
+  <li><strong>Fashion Report Simulator</strong> (Outfits posten, Community stimmt ab, Punktevergabe) <strong>(W.I.P)</strong></li>
+  <li><strong>Marktbrett-Quiz</strong> (Item + Region → Preis raten) <strong>(W.I.P)</strong></li>
+  <li><strong>Official-Info/News/Störungen</strong> als Embed-Posts <strong>(W.I.P)</strong></li>
 </ul>
 
-<hr/>
+<p><a href="#apis">← vorheriger Abschnitt</a> · <a href="#wie-wo">nächster Abschnitt →</a> · <a href="#start">↑ nach oben</a></p>
+<hr>
 
-<h2>🗺️ Future (maybe later)</h2>
+<h2 id="wie-wo">7) Erklärung: Was? Wie? Wo?</h2>
+<h3>Was</h3>
+<p>Ein Bot, der FFXIV-Informationen in Discord nutzbar macht: Marktpreise, Housing, Hunts, Events, Social-Tools.</p>
+
+<h3>Wie</h3>
 <ul>
-  <li><strong>Crafting &amp; gathering helpers</strong>: Profit per craft, material shopping lists, vendor vs. MB comparisons.</li>
-  <li><strong>Cross-DC arbitrage</strong>: Factor DC travel cost &amp; time into net profit.</li>
-  <li><strong>Patch &amp; maintenance alerts</strong>: Official notices summarized with exact windows for your region.</li>
-  <li><strong>Raid &amp; tomestone trackers</strong>: Weekly lockout status and capped tomes remaining.</li>
-  <li><strong>Island Sanctuary &amp; custom rotations</strong>: Timers and recommended rotations with estimated gil/hour.</li>
-  <li><strong>Hunt/Map event support</strong>: Schedule pings for trains, S-rank windows, and treasure map parties.</li>
-  <li><strong>Smarter alert throttling</strong>: Per-user quiet hours; spam protection.</li>
+  <li>Module/Kommandos je Feature (klare Trennung von Datenquellen und Logik).</li>
+  <li>Benachrichtigungen via Discord-Embeds und (optional) Webhooks.</li>
+  <li>Scheduler für Resets/Events (Cron/Jobs).</li>
+  <li>Caching, Rate-Limits und Backoff, um API-Quellen zu schonen.</li>
 </ul>
 
-<hr/>
+<h3>Wo</h3>
+<ul>
+  <li><strong>Lokal/Server/VPS</strong> möglich.</li>
+  <li><strong>Docker</strong> empfohlen (Compose-Datei optional): ein Service für Bot, optional ein Service für Cache/DB (z. B. Redis/PostgreSQL).</li>
+  <li>Datenspeicher: minimalistisch (nur, was für Features nötig ist).</li>
+</ul>
 
-<h2>⚖️ Disclaimer</h2>
-<p>
-  AetherShiba is an independent fan project and is not affiliated with or endorsed by SQUARE ENIX CO., LTD.
-  Use of third‑party APIs must comply with their terms. Please follow the FFXIV Terms of Service and your data
-  provider’s rate limits and policies.
-</p>
+<p><a href="#features">← vorheriger Abschnitt</a> · <a href="#daten">nächster Abschnitt →</a> · <a href="#start">↑ nach oben</a></p>
+<hr>
 
-<hr/>
+<h2 id="daten">8) Datenschutz &amp; Sicherheit</h2>
+<ul>
+  <li>Speichere nur notwendige Daten (z. B. User-IDs für Alarme/Verknüpfungen).</li>
+  <li>Kein Speichern sensibler Inhalte aus Discord-Chats ohne Zustimmung.</li>
+  <li>API-Schlüssel in <code>.env</code>; niemals ins Repo commiten.</li>
+  <li>Beachte Nutzungsbedingungen/ToS der Datenquellen (Universalis, XIVAPI, Discord, etc.).</li>
+  <li>Opt-out/Opt-in Mechanismen für Benachrichtigungen anbieten.</li>
+</ul>
 
-<h2>🤝 Contributing</h2>
-<p>
-  Issues and PRs are welcome! If you’re adding a data provider or new command set, include docs and tests where possible.
-</p>
+<p><a href="#wie-wo">← vorheriger Abschnitt</a> · <a href="#lizenz">nächster Abschnitt →</a> · <a href="#start">↑ nach oben</a></p>
+<hr>
 
-<p align="center">
-  <sub>Made with ❤️ for Eorzea.</sub>
-</p>
+<h2 id="lizenz">9) Lizenz</h2>
+<p><strong>Alle Rechte vorbehalten.</strong> Der gesamte Quellcode, die Dokumentation und alle zugehörigen Assets von <em>[Projektname]</em>
+unterliegen dem ausschließlichen Recht von <em>[Dein Name/Deine Organisation]</em>. Jegliche Verwendung, Vervielfältigung, Veränderung,
+Verbreitung oder Veröffentlichung – ganz oder in Teilen – ist ohne vorherige, ausdrückliche und schriftliche Zustimmung untersagt.</p>
+
+<p>Ausnahmegenehmigungen (z. B. für private Tests oder Beiträge) können individuell erteilt werden und sind widerrufbar.
+Mit dem Einreichen eines Pull Requests überträgst du uns das zeitlich und räumlich unbeschränkte, nicht-exklusive Recht,
+den Beitrag in diesem Projekt zu nutzen, zu ändern und zu verbreiten.</p>
+
+<p><a href="#daten">← vorheriger Abschnitt</a> · <a href="#roadmap">nächster Abschnitt →</a> · <a href="#start">↑ nach oben</a></p>
+<hr>
+
+<h2 id="roadmap">10) Roadmap, Beiträge &amp; Changelog</h2>
+<h3>Roadmap (Kurz)</h3>
+<ul>
+  <li>Stabilisierung Marktalarme (W.I.P)</li>
+  <li>Hunt-Datenquellen evaluieren &amp; integrieren (W.I.P)</li>
+  <li>Event-Planung mit Vorlagen/Guides (W.I.P)</li>
+  <li>Gehilfen-Tracking-UI in Discord (W.I.P)</li>
+</ul>
+
+<h3>Mitmachen</h3>
+<ol>
+  <li>Issue anlegen (Fehler/Feature-Wunsch klar beschreiben).</li>
+  <li>Branch erstellen, Änderungen committen, Pull Request öffnen.</li>
+  <li>Bitte Code-Kommentare und einfache Tests beilegen.</li>
+</ol>
+
+<h3>Changelog</h3>
+<ul>
+  <li><strong>[YYYY-MM-DD]</strong> – Erste stabile Housing-Listings (Implementiert)</li>
+  <li><strong>[YYYY-MM-DD]</strong> – Grundgerüst für Marktalarme (W.I.P)</li>
+</ul>
+
+<p><a href="#lizenz">← vorheriger Abschnitt</a> · <a href="#faq">nächster Abschnitt →</a> · <a href="#start">↑ nach oben</a></p>
+<hr>
+
+<h2 id="faq">11) FAQ</h2>
+<details>
+  <summary>Welche Datenzentren werden unterstützt?</summary>
+  <p>Alle öffentlichen Datenzentren, sofern die genutzten APIs diese abdecken. Standard: <code>DEFAULT_DATACENTER</code> aus der Konfiguration.</p>
+</details>
+<details>
+  <summary>Kann ich mehrere Discord-Server/Guilds nutzen?</summary>
+  <p>Ja. Trenne die IDs durch Komma in <code>DISCORD_GUILD_IDS</code>.</p>
+</details>
+<details>
+  <summary>Wie richte ich Rollen-Automatiken ein?</summary>
+  <p>Aktiviere Account-Linking und Reactions; definiere eine Zuordnung (z. B. Tank/Healer/DPS) in deiner Konfiguration.</p>
+</details>
+
+<p><a href="#roadmap">← vorheriger Abschnitt</a> · <a href="#kontakt">nächster Abschnitt →</a> · <a href="#start">↑ nach oben</a></p>
+<hr>
+
+<h2 id="kontakt">12) Kontakt &amp; Support</h2>
+<ul>
+  <li><strong>Issues</strong>: Bitte im GitHub-Issue-Tracker melden (mit Logs/Schritten).</li>
+  <li><strong>Fragen</strong>: Nutze Discussions oder deinen Discord-Support-Channel.</li>
+  <li><strong>Screenshots/Beispiele</strong>: Füge Bilder/Links in Issues/PRs ein (kein sensibler Inhalt).</li>
+</ul>
+
+<p align="center"><a href="#start">↑ zurück zum Anfang</a></p>
