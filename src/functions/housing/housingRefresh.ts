@@ -44,6 +44,7 @@ function plotHash(p: Plot): string {
 
 export async function refreshHousing(client: Client, guildID: string) {
   const startedAt = Date.now();
+  logger.info(`[🏠Housing][${guildID}] Refresh started for the Server (AUTO)`);
 
   // 1) Config laden & validieren
   const config = await configManager.get(guildID).catch((err: any) => {
@@ -300,7 +301,8 @@ export async function refreshHousing(client: Client, guildID: string) {
         hash: plotHash(plot),
         ...(plot.lottery?.phaseUntil ? { deleteAt: plot.lottery.phaseUntil } : {})
       };
-
+      
+      logger.info(`[🏠Housing][${guildID}] Refresh Ended for the Server`);
       added++;
     }
   }
