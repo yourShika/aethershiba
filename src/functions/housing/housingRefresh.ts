@@ -42,41 +42,6 @@ function plotHash(p: Plot): string {
 }
 
 
-async function pruneMissingMessages(client: Client, guildId: string, rec: MsgRecord): Promise<number> {
-  let removed = 0;
-
-  for (const [key, info] of Object.entries(rec.messages)) {
-
-    const channel = await client.channels.fetch(info.threadId).catch((error) => {
-      logger.warn(`[🏠Housing][${guildId}] prune: Thread fetch fehlgeschlagen (threadID=${info.threadId}) : ${String(error)}`);
-      return null;
-    });
-    
-    if (
-      !channel || (channel.type !== ChannelType.PublicThread && 
-        channel.type !== ChannelType.PrivateThread && 
-        !('isTextBased' in channel && (channel as any).isTextBased()))
-      ) {
-      delete rec.messages[key];
-      removed++;
-      logger.info(
-        `[🏠Housing][${guildId}] prune: Thread fehlt/kein Textkanal → Eintrag entfernt (key=${key}, threadId=${info.threadId})`
-      );
-      continue;
-    }
-
-    const textChannel = channel as TextBasedChannel;
-
-
-    const msg = await textChannel.messages.fetch(info.messageId).catch(() => null);
-    if (!msg) {
-      delete rec.messages[key];
-      removed++;
-    }
-  }
-  return removed;
-}
-
 export async function refreshHousing(client: Client, guildID: string) {
   const startedAt = Date.now();
 
@@ -142,10 +107,9 @@ export async function refreshHousing(client: Client, guildID: string) {
   rec.channelId = hc.channelId;
   store[guildID] = rec;
 
-  // 4) Discord-Bestand prüfen (prune)
-  let removed = await pruneMissingMessages(client, guildID, rec);
+  let removed = 0;
 
-  // 5) Plots vom Provider holen
+  // 4) Plots vom Provider holen
   const allPlots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
   const worlds: string[] = (hc.worlds && Array.isArray(hc.worlds) && hc.worlds.length > 0)
     ? hc.worlds
@@ -170,59 +134,37 @@ export async function refreshHousing(client: Client, guildID: string) {
   const available = new Map<string, Plot>();
   for (const p of allPlots) available.set(plotKey(p), p);
 
-  // 6) Aktualisieren/Löschen bestehender Nachrichten
+  // 5) Aktualisieren/Löschen bestehender Nachrichten
   let updated = 0;
-  for (const key of Object.keys(rec.messages)) {
-    const info = rec.messages[key];
-    if (!info) continue;
-
+  for (const [key, info] of Object.entries(rec.messages)) {
     const plot = available.get(key);
 
-    // Thread holen
-    const threadCh = await client.channels.fetch(info.threadId).catch((e) => {
+    const channel = await client.channels.fetch(info.threadId).catch((e) => {
       logger.warn(
         `[🏠Housing][${guildID}] Edit-Pfad: Thread fetch fehlgeschlagen (threadId=${info.threadId}): ${String(e)}`
       );
       return null;
     });
 
-    // Plot existiert nicht mehr in API → löschen
-    if (!plot) {
-      if (threadCh && 'isTextBased' in threadCh && (threadCh as any).isTextBased()) {
-        const textChan = threadCh as TextBasedChannel;
-        await textChan.messages.delete(info.messageId).catch((e) => {
-          logger.warn(
-            `[🏠Housing][${guildID}] Löschen (nicht mehr in API) fehlgeschlagen (messageId=${info.messageId}): ${String(
-              e
-            )}`
-          );
-        });
-      } else {
-        logger.info(
-          `[🏠Housing][${guildID}] Thread fehlt/kein Textkanal beim Löschen (nicht mehr in API) (key=${key}, threadId=${info.threadId})`
-        );
-      }
+    if (!channel || !('isTextBased' in channel) || !(channel as any).isTextBased()) {
       delete rec.messages[key];
       removed++;
       continue;
     }
 
-    if (!(threadCh && 'isTextBased' in threadCh && (threadCh as any).isTextBased())) {
-      logger.warn(
-        `[🏠Housing][${guildID}] Thread fehlt/kein Textkanal, kann bestehende Nachricht nicht aktualisieren (key=${key})`
-      );
+    const textChan = channel as TextBasedChannel;
+
+    const msg = await textChan.messages.fetch(info.messageId).catch(() => null);
+    if (!msg) {
+      delete rec.messages[key];
+      removed++;
       continue;
     }
 
-    const textChan = threadCh as TextBasedChannel;
-
-    // Ablauf? (phaseUntil in Vergangenheit) → löschen
-    if (plot.lottery?.phaseUntil && plot.lottery.phaseUntil <= Date.now()) {
-      await textChan.messages.delete(info.messageId).catch((e) => {
+    if (!plot) {
+      await msg.delete().catch((e) => {
         logger.warn(
-          `[🏠Housing][${guildID}] Löschen (phaseUntil überschritten) fehlgeschlagen (messageId=${info.messageId}): ${String(
-            e
-          )}`
+          `[🏠Housing][${guildID}] Löschen (nicht mehr in API) fehlgeschlagen (messageId=${info.messageId}): ${String(e)}`
         );
       });
       delete rec.messages[key];
@@ -230,7 +172,17 @@ export async function refreshHousing(client: Client, guildID: string) {
       continue;
     }
 
-    // Immer refreshed-at setzen (Embed.timestamp)
+    if (plot.lottery?.phaseUntil && plot.lottery.phaseUntil <= Date.now()) {
+      await msg.delete().catch((e) => {
+        logger.warn(
+          `[🏠Housing][${guildID}] Löschen (phaseUntil überschritten) fehlgeschlagen (messageId=${info.messageId}): ${String(e)}`
+        );
+      });
+      delete rec.messages[key];
+      removed++;
+      continue;
+    }
+
     const newHash = plotHash(plot);
     const { embed, attachment } = plotEmbed(plot, now);
     (embed as any).timestamp = now.toISOString();
@@ -239,13 +191,12 @@ export async function refreshHousing(client: Client, guildID: string) {
     const hashChanged = info.hash !== newHash;
     if (hashChanged && attachment) opts.files = [attachment];
 
-    await textChan.messages.edit(info.messageId, opts).catch((e) => {
+    await msg.edit(opts).catch((e) => {
       logger.warn(
         `[🏠Housing][${guildID}] Edit fehlgeschlagen (messageId=${info.messageId}, key=${key}): ${String(e)}`
       );
     });
 
-    // deleteAt pflegen
     if (plot.lottery?.phaseUntil) info.deleteAt = plot.lottery.phaseUntil;
     else delete info.deleteAt;
 
@@ -254,9 +205,11 @@ export async function refreshHousing(client: Client, guildID: string) {
       updated++;
     }
 
+    // remove from available so it won't be treated as new
+    available.delete(key);
   }
 
-  // 7) Mentions vorbereiten
+  // 6) Mentions vorbereiten
   const mention = [
     hc.pingUserId ? `<@${hc.pingUserId}>` : null,
     hc.pingRoleId ? `<@&${hc.pingRoleId}>` : null
@@ -264,7 +217,7 @@ export async function refreshHousing(client: Client, guildID: string) {
     .filter(Boolean)
     .join(' ');
 
-  // 8) Neue Plots posten
+  // 7) Neue Plots posten
   let added = 0;
   for (const [key, plot] of available) {
     if (rec.messages[key]) continue;
@@ -357,7 +310,7 @@ export async function refreshHousing(client: Client, guildID: string) {
 
   const elapsedMs = Date.now() - startedAt;
 
-  return { added, removed, updated };
+  return { added, removed, updated, elapsedMs };
 }
 
 /** Safe write helper mit Logging */
