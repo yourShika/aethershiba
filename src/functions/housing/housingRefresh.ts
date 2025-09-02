@@ -1,4 +1,4 @@
-import { Client, ForumChannel, ChannelType } from 'discord.js';
+import { Client, ForumChannel, ChannelType, ThreadChannel } from 'discord.js';
 import type { TextBasedChannel } from 'discord.js';
 import path from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -106,6 +106,34 @@ export async function refreshHousing(client: Client, guildID: string) {
     };
   rec.channelId = hc.channelId;
   store[guildID] = rec;
+
+  // 3a) vorhandene Threads einlesen & Duplikate bereinigen
+  const threadsByName = new Map<string, ThreadChannel[]>();
+  try {
+    const active = await forum.threads.fetchActive();
+    active.threads.forEach((t) => {
+      const arr = threadsByName.get(t.name) ?? [];
+      arr.push(t);
+      threadsByName.set(t.name, arr);
+    });
+  } catch {}
+  try {
+    const archived = await forum.threads.fetch({ archived: { limit: 100 } });
+    archived.threads.forEach((t) => {
+      const arr = threadsByName.get(t.name) ?? [];
+      arr.push(t);
+      threadsByName.set(t.name, arr);
+    });
+  } catch {}
+
+  for (const [name, arr] of threadsByName) {
+    arr.sort((a, b) => (a.createdTimestamp ?? 0) - (b.createdTimestamp ?? 0));
+    const keep = arr[0]!;
+    rec.threads[name] = keep.id;
+    for (const dupe of arr.slice(1)) {
+      await dupe.delete().catch(() => null);
+    }
+  }
 
   let removed = 0;
 
