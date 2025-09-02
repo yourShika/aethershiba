@@ -1,4 +1,4 @@
-import type { Client, TextChannel, ForumChannel } from 'discord.js';
+import type { Client, TextChannel, ForumChannel, ThreadChannel } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import { configManager } from '../../handlers/configHandler';
 import { HousingRequired } from '../../schemas/housing';
@@ -69,25 +69,47 @@ export async function runHousingCheckt(client: Client, guildID: string, opts: Ru
     }
 
     if (ch.type === ChannelType.GuildForum) {
+      const forum = ch as ForumChannel;
       const byDistrict = new Map<string, typeof fresh>();
       for (const p of fresh) {
         const arr = byDistrict.get(p.district) ?? [];
         arr.push(p);
         byDistrict.set(p.district, arr);
       }
+
+      const existing = new Map<string, ThreadChannel>();
+      try {
+        const active = await forum.threads.fetchActive();
+        active.threads.forEach((t) => existing.set(t.name, t));
+      } catch {}
+      try {
+        const archived = await forum.threads.fetch({ archived: { limit: 100 } });
+        archived.threads.forEach((t) => existing.set(t.name, t));
+      } catch {}
+
       let sent = 0;
       for (const [district, list] of byDistrict) {
-        const first = list[0]!;
-        const { embed, attachment } = plotEmbed(first);
-        const thread = await (ch as ForumChannel).threads.create({
-          name: district,
-          message: { content: mention, embeds: [embed], files: attachment ? [attachment] : [] },
-        });
-        sent++;
-        for (const p of list.slice(1)) {
-          const { embed: e, attachment: a } = plotEmbed(p);
-          await thread.send({ content: mention, embeds: [e], files: a ? [a] : [] });
+        let thread = existing.get(district);
+        if (!thread) {
+          const first = list[0]!;
+          const { embed, attachment } = plotEmbed(first);
+          thread = await forum.threads.create({
+            name: district,
+            message: { content: mention, embeds: [embed], files: attachment ? [attachment] : [] },
+          });
+          existing.set(district, thread);
           sent++;
+          for (const p of list.slice(1)) {
+            const { embed: e, attachment: a } = plotEmbed(p);
+            await thread.send({ content: mention, embeds: [e], files: a ? [a] : [] });
+            sent++;
+          }
+        } else {
+          for (const p of list) {
+            const { embed: e, attachment: a } = plotEmbed(p);
+            await thread.send({ content: mention, embeds: [e], files: a ? [a] : [] });
+            sent++;
+          }
         }
       }
       return sent;
