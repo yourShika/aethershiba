@@ -20,7 +20,6 @@ function inferSize(price?: number): 'S' | 'M' | 'L' | undefined {
 }
 
 export function plotEmbed(p: Plot, refreshedAt?: Date) {
-    const status = formatStatus(p);
     const size = inferSize(p.price) ?? p.size ?? '-';
     const embed = new EmbedBuilder()
         .setTitle(`🏠 ${p.world} - ${p.district} Ward ${p.ward} Plot ${p.plot}`)
@@ -59,13 +58,4 @@ export function plotEmbed(p: Plot, refreshedAt?: Date) {
     return { embed, attachment };
 }
 
-function formatStatus(p: Plot): string {
-    switch (p.lottery.state) {
-        case 'preparation': return 'Vorbereitung';
-        case 'running': return `Verlosung läuft${p.lottery.endsAt ? ` bis ${p.lottery.endsAt}` : ''}`;
-        case 'results': return `Ergebnisse${p.lottery.winner != null ? ` - Gewinner: ${p.lottery.winner ? 'Ja' : 'Nein'}` : ''}`;
-        case 'none': return 'Verfügbar';
-        default: return '-';
-    }
-}
 

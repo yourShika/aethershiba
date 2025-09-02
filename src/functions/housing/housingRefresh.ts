@@ -1,22 +1,12 @@
-import type { Client } from 'discord.js';
-import { ChannelType, ForumChannel } from 'discord.js';
+import { Client, ForumChannel, ChannelType } from 'discord.js';
+import type { TextBasedChannel } from 'discord.js';
+import path from 'node:path';
+import { readFile, writeFile } from 'node:fs/promises';
+import { logger } from '../../lib/logger.js';
 import { configManager } from '../../handlers/configHandler.js';
 import { HousingRequired } from '../../schemas/housing.js';
 import { PaissaProvider, type Plot } from './housingProvider.paissa.js';
 import { plotEmbed } from '../../commands/housing/embed.js';
-import path from 'node:path';
-import { readFile, writeFile } from 'node:fs/promises';
-
-const provider = new PaissaProvider();
-const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
-
-function plotKey(p: Plot): string {
-  return [p.dataCenter, p.world, p.district, p.ward, p.plot].join(':');
-}
-
-function plotHash(p: Plot): string {
-  return JSON.stringify(p);
-}
 
 type MsgRecord = {
   channelId: string;
@@ -27,16 +17,58 @@ type MsgRecord = {
   >;
 };
 
-async function pruneMissingMessages(client: Client, rec: MsgRecord): Promise<number> {
+const provider = new PaissaProvider();
+const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
+
+function plotKey(p: Plot): string {
+  return [p.dataCenter, p.world, p.district, p.ward, p.plot].join(':');
+}
+
+function plotHash(p: Plot): string {
+  const stable = {
+    dataCenter: p.dataCenter,
+    world: p.world,
+    district: p.district,
+    ward: p.ward,
+    plot: p.plot,
+    size: p.size,
+    price: p.price,
+    lottery: {
+      phaseUntil: p.lottery?.phaseUntil ?? null,
+      entrants: p.lottery?.entries ?? null,
+    }
+  };
+  return JSON.stringify(stable);
+}
+
+
+async function pruneMissingMessages(client: Client, guildId: string, rec: MsgRecord): Promise<number> {
   let removed = 0;
+
   for (const [key, info] of Object.entries(rec.messages)) {
-    const thread = await client.channels.fetch(info.threadId).catch(() => null);
-    if (!thread || !thread.isTextBased()) {
+
+    const channel = await client.channels.fetch(info.threadId).catch((error) => {
+      logger.warn(`[🏠Housing][${guildId}] prune: Thread fetch fehlgeschlagen (threadID=${info.threadId}) : ${String(error)}`);
+      return null;
+    });
+    
+    if (
+      !channel || (channel.type !== ChannelType.PublicThread && 
+        channel.type !== ChannelType.PrivateThread && 
+        !('isTextBased' in channel && (channel as any).isTextBased()))
+      ) {
       delete rec.messages[key];
       removed++;
+      logger.info(
+        `[🏠Housing][${guildId}] prune: Thread fehlt/kein Textkanal → Eintrag entfernt (key=${key}, threadId=${info.threadId})`
+      );
       continue;
     }
-    const msg = await thread.messages.fetch(info.messageId).catch(() => null);
+
+    const textChannel = channel as TextBasedChannel;
+
+
+    const msg = await textChannel.messages.fetch(info.messageId).catch(() => null);
     if (!msg) {
       delete rec.messages[key];
       removed++;
@@ -46,120 +78,296 @@ async function pruneMissingMessages(client: Client, rec: MsgRecord): Promise<num
 }
 
 export async function refreshHousing(client: Client, guildID: string) {
-  const config = await configManager.get(guildID);
+  const startedAt = Date.now();
+
+  // 1) Config laden & validieren
+  const config = await configManager.get(guildID).catch((err: any) => {
+    logger.error(`[🏠Housing][${guildID}] Config laden fehlgeschlagen: ${String(err)}`);
+    return null;
+  });
+  if (!config) {
+    return { added: 0, removed: 0, updated: 0 };
+  }
+
   const h = (config['housing'] as any) ?? null;
   const ok = HousingRequired.safeParse(h);
-  if (!ok.success) return { added: 0, removed: 0, updated: 0 };
+  if (!ok.success) {
+    logger.warn(
+      `[🏠Housing][${guildID}] Housing-Config invalid (safeParse). Abbruch.`,
+      (ok as any).error?.issues ?? undefined
+    );
+    return { added: 0, removed: 0, updated: 0 };
+  }
+
   const hc = ok.data;
+  logger.info(`[🏠Housing][${guildID}] Config Loading OK`, {
+    channelId: hc.channelId,
+    dataCenter: hc.dataCenter,
+    worlds: hc.worlds ?? [hc.worlds].filter(Boolean),
+    districts: hc.districts
+  });
 
-  const ch = await client.channels.fetch(hc.channelId).catch(() => null);
-  if (!ch || ch.type !== ChannelType.GuildForum) return { added: 0, removed: 0, updated: 0 };
+  // 2) Forum-Channel holen
+  const ch = await client.channels.fetch(hc.channelId).catch((e) => {
+    logger.error(`[🏠Housing][${guildID}] Channel fetch fehlgeschlagen (channelId=${hc.channelId}): ${String(e)}`);
+    return null;
+  });
+  if (!ch) {
+    return { added: 0, removed: 0, updated: 0 };
+  }
+  if (ch.type !== ChannelType.GuildForum) {
+    logger.warn(`[🏠Housing][${guildID}] Channel ist kein GuildForum (type=${ch.type}) → abort`);
+    return { added: 0, removed: 0, updated: 0 };
+  }
+  const forum = ch as ForumChannel;
 
+  // 3) Persistenz laden
   let store: Record<string, MsgRecord> = {};
   try {
-    store = JSON.parse(await readFile(filePath, 'utf8')) as Record<string, MsgRecord>;
-  } catch {
+    const raw = await readFile(filePath, 'utf8');
+    store = JSON.parse(raw) as Record<string, MsgRecord>;
+  } catch (e: any) {
+    logger.warn(
+      `[🏠Housing][${guildID}] Konnte ${filePath} nicht lesen oder parsen – starte mit leerem Store. Fehler: ${String(e)}`
+    );
     store = {};
   }
-  const rec: MsgRecord = store[guildID] ?? { channelId: hc.channelId, threads: {}, messages: {} };
+
+  const rec: MsgRecord =
+    store[guildID] ?? {
+      channelId: hc.channelId,
+      threads: {},
+      messages: {}
+    };
   rec.channelId = hc.channelId;
   store[guildID] = rec;
 
-  let removed = await pruneMissingMessages(client, rec);
+  // 4) Discord-Bestand prüfen (prune)
+  let removed = await pruneMissingMessages(client, guildID, rec);
+
+  // 5) Plots vom Provider holen
   const allPlots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
-  for (const world of hc.worlds) {
-    const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
-    allPlots.push(...p);
+  const worlds: string[] = (hc.worlds && Array.isArray(hc.worlds) && hc.worlds.length > 0)
+    ? hc.worlds
+    : [];
+
+  if (!worlds.length) {
+    logger.warn(`[🏠Housing][${guildID}] Keine Worlds in der Config. Abbruch.`);
+    await writeSafe(filePath, store, guildID);
+    return { added: 0, removed, updated: 0 };
+  }
+
+  for (const world of worlds) {
+    try {
+      const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
+      allPlots.push(...p);
+    } catch (e: any) {
+      logger.error(`[🏠Housing][${guildID}] Provider-Fehler (world=${world}): ${String(e)}`);
+    }
   }
 
   const now = new Date();
   const available = new Map<string, Plot>();
-  for (const p of allPlots) {
-    available.set(plotKey(p), p);
-  }
+  for (const p of allPlots) available.set(plotKey(p), p);
 
+  // 6) Aktualisieren/Löschen bestehender Nachrichten
   let updated = 0;
   for (const key of Object.keys(rec.messages)) {
     const info = rec.messages[key];
     if (!info) continue;
+
     const plot = available.get(key);
-    const thread = await client.channels.fetch(info.threadId).catch(() => null);
+
+    // Thread holen
+    const threadCh = await client.channels.fetch(info.threadId).catch((e) => {
+      logger.warn(
+        `[🏠Housing][${guildID}] Edit-Pfad: Thread fetch fehlgeschlagen (threadId=${info.threadId}): ${String(e)}`
+      );
+      return null;
+    });
+
+    // Plot existiert nicht mehr in API → löschen
     if (!plot) {
-      if (thread && thread.isTextBased()) {
-        await thread.messages.delete(info.messageId).catch(() => {});
+      if (threadCh && 'isTextBased' in threadCh && (threadCh as any).isTextBased()) {
+        const textChan = threadCh as TextBasedChannel;
+        await textChan.messages.delete(info.messageId).catch((e) => {
+          logger.warn(
+            `[🏠Housing][${guildID}] Löschen (nicht mehr in API) fehlgeschlagen (messageId=${info.messageId}): ${String(
+              e
+            )}`
+          );
+        });
+      } else {
+        logger.info(
+          `[🏠Housing][${guildID}] Thread fehlt/kein Textkanal beim Löschen (nicht mehr in API) (key=${key}, threadId=${info.threadId})`
+        );
       }
       delete rec.messages[key];
       removed++;
-    } else if (thread && thread.isTextBased()) {
-      if (plot.lottery.phaseUntil && plot.lottery.phaseUntil <= Date.now()) {
-        await thread.messages.delete(info.messageId).catch(() => {});
-        delete rec.messages[key];
-        removed++;
-        continue;
-      }
-      const newHash = plotHash(plot);
-      const { embed, attachment } = plotEmbed(plot, now);
-      const opts: any = { embeds: [embed] };
-      if (info.hash !== newHash && attachment) {
-        opts.files = [attachment];
-      }
-      await thread.messages.edit(info.messageId, opts).catch(() => {});
-      if (plot.lottery.phaseUntil) {
-        info.deleteAt = plot.lottery.phaseUntil;
-      } else {
-        delete info.deleteAt;
-      }
-      if (info.hash !== newHash) {
-        info.hash = newHash;
-        updated++;
-      }
+      continue;
     }
+
+    if (!(threadCh && 'isTextBased' in threadCh && (threadCh as any).isTextBased())) {
+      logger.warn(
+        `[🏠Housing][${guildID}] Thread fehlt/kein Textkanal, kann bestehende Nachricht nicht aktualisieren (key=${key})`
+      );
+      continue;
+    }
+
+    const textChan = threadCh as TextBasedChannel;
+
+    // Ablauf? (phaseUntil in Vergangenheit) → löschen
+    if (plot.lottery?.phaseUntil && plot.lottery.phaseUntil <= Date.now()) {
+      await textChan.messages.delete(info.messageId).catch((e) => {
+        logger.warn(
+          `[🏠Housing][${guildID}] Löschen (phaseUntil überschritten) fehlgeschlagen (messageId=${info.messageId}): ${String(
+            e
+          )}`
+        );
+      });
+      delete rec.messages[key];
+      removed++;
+      continue;
+    }
+
+    // Immer refreshed-at setzen (Embed.timestamp)
+    const newHash = plotHash(plot);
+    const { embed, attachment } = plotEmbed(plot, now);
+    (embed as any).timestamp = now.toISOString();
+
+    const opts: any = { embeds: [embed] };
+    const hashChanged = info.hash !== newHash;
+    if (hashChanged && attachment) opts.files = [attachment];
+
+    await textChan.messages.edit(info.messageId, opts).catch((e) => {
+      logger.warn(
+        `[🏠Housing][${guildID}] Edit fehlgeschlagen (messageId=${info.messageId}, key=${key}): ${String(e)}`
+      );
+    });
+
+    // deleteAt pflegen
+    if (plot.lottery?.phaseUntil) info.deleteAt = plot.lottery.phaseUntil;
+    else delete info.deleteAt;
+
+    if (hashChanged) {
+      info.hash = newHash;
+      updated++;
+    }
+
   }
 
+  // 7) Mentions vorbereiten
   const mention = [
     hc.pingUserId ? `<@${hc.pingUserId}>` : null,
-    hc.pingRoleId ? `<@&${hc.pingRoleId}>` : null,
+    hc.pingRoleId ? `<@&${hc.pingRoleId}>` : null
   ]
     .filter(Boolean)
     .join(' ');
 
+  // 8) Neue Plots posten
   let added = 0;
   for (const [key, plot] of available) {
     if (rec.messages[key]) continue;
+
     const { embed, attachment } = plotEmbed(plot, now);
+    (embed as any).timestamp = now.toISOString();
+
+    // Thread je Bezirk
     let threadId = rec.threads[plot.district];
-    let thread: ForumChannel | any = await (threadId
-      ? client.channels.fetch(threadId).catch(() => null)
-      : null);
+    let thread: any = null;
+
+    if (threadId) {
+      thread = await client.channels.fetch(threadId).catch((e) => {
+        logger.warn(
+          `[🏠Housing][${guildID}] Gespeicherten Thread nicht fetchbar (district=${plot.district}, threadId=${threadId}): ${String(
+            e
+          )}`
+        );
+        return null;
+      });
+
+      if (!(thread && 'isTextBased' in thread && (thread as any).isTextBased())) {
+        logger.info(
+          `[🏠Housing][${guildID}] Gespeicherter Thread unbrauchbar → Erzeuge neuen (district=${plot.district})`
+        );
+        thread = null;
+      }
+    }
+
     if (!thread) {
-      const msg: any = { embeds: [embed], files: attachment ? [attachment] : [] };
-      if (mention) msg.content = mention;
-      thread = await (ch as ForumChannel).threads.create({ name: plot.district, message: msg });
+      // neuen Thread mit Starter-Post
+      const starterMsg: any = { embeds: [embed], files: attachment ? [attachment] : [] };
+      if (mention) starterMsg.content = mention;
+
+      thread = await forum.threads
+        .create({
+          name: plot.district,
+          message: starterMsg
+        })
+        .catch((e) => {
+          logger.error(
+            `[🏠Housing][${guildID}] Thread-Erstellung fehlgeschlagen (district=${plot.district}): ${String(e)}`
+          );
+          return null;
+        });
+
+      if (!thread) continue;
+
       rec.threads[plot.district] = thread.id;
-      const starter = await thread.fetchStarterMessage();
+
+      const starter = await thread.fetchStarterMessage().catch(() => null);
       const starterId = starter?.id ?? '';
+
       rec.messages[key] = {
         threadId: thread.id,
         messageId: starterId,
         hash: plotHash(plot),
-        ...(plot.lottery.phaseUntil ? { deleteAt: plot.lottery.phaseUntil } : {}),
+        ...(plot.lottery?.phaseUntil ? { deleteAt: plot.lottery.phaseUntil } : {})
       };
-    } else if (thread.isTextBased()) {
-      const m: any = { embeds: [embed], files: attachment ? [attachment] : [] };
-      if (mention) m.content = mention;
-      const sent = await thread.send(m);
+
+      added++;
+    } else {
+      // Nachricht in existierendem Thread senden
+      const threadChan = thread as import('discord.js').ThreadChannel;
+      const msg: any = { embeds: [embed], files: attachment ? [attachment] : [] };
+      if (mention) msg.content = mention;
+
+      const sent = await threadChan.send(msg).catch((e) => {
+        logger.error(
+          `[🏠Housing][${guildID}] Senden in Thread fehlgeschlagen (district=${plot.district}): ${String(e)}`
+        );
+        return null;
+      });
+
+      if (!sent) continue;
+
       rec.messages[key] = {
         threadId: thread.id,
         messageId: sent.id,
         hash: plotHash(plot),
-        ...(plot.lottery.phaseUntil ? { deleteAt: plot.lottery.phaseUntil } : {}),
+        ...(plot.lottery?.phaseUntil ? { deleteAt: plot.lottery.phaseUntil } : {})
       };
+
+      added++;
     }
-    added++;
   }
 
-  await writeFile(filePath, JSON.stringify(store, null, 2), 'utf8');
+  // 9) Persistenz speichern
+  await writeSafe(filePath, store, guildID);
+
+  const elapsedMs = Date.now() - startedAt;
 
   return { added, removed, updated };
 }
 
+/** Safe write helper mit Logging */
+async function writeSafe(fp: string, store: Record<string, MsgRecord>, guildId: string) {
+  try {
+    await writeFile(fp, JSON.stringify(store, null, 2), 'utf8');
+    logger.info(
+      `[🏠Housing][${guildId}] State gespeichert (${fp}) | threads=${Object.keys(store[guildId]?.threads ?? {}).length} messages=${Object.keys(store[guildId]?.messages ?? {}).length}`
+    );
+  } catch (e: any) {
+    logger.error(`[🏠Housing][${guildId}] Fehler beim Schreiben von ${fp}: ${String(e)}`);
+  }
+}
