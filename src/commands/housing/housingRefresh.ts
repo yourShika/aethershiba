@@ -11,7 +11,11 @@ export default {
       return;
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const { added, removed, updated } = await refreshHousing(interaction.client, guildID);
-    await interaction.editReply({ content: `Housing refreshed. ${added} added, ${removed} removed, ${updated} updated.` });
+    const { added, removed, updated, elapsedMs = 0 } = await refreshHousing(interaction.client, guildID);
+    const secs = Math.floor(elapsedMs / 1000);
+    const hh = String(Math.floor(secs / 3600)).padStart(2, '0');
+    const mm = String(Math.floor((secs % 3600) / 60)).padStart(2, '0');
+    const ss = String(secs % 60).padStart(2, '0');
+    await interaction.editReply({ content: `Housing refreshed in ${hh}:${mm}:${ss}. ${added} added, ${removed} removed, ${updated} updated.` });
   }
 };
