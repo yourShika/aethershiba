@@ -4,7 +4,7 @@ import { HousingRequired } from '../../schemas/housing';
 import { refreshHousing } from './housingRefresh';
 import { logError } from '../../handlers/errorHandler.js';
 
-type S = { last?: number; runs: number; day: string};
+type S = { last?: number; runs: number; day: string; running: boolean };
 const state = new Map<string, S>();
 
 function dayKey(d = new Date()): string {
@@ -23,11 +23,13 @@ export function startHousingScheduler(client: Client) {
                 const req = HousingRequired.safeParse(h);
                 if (!req.success) continue;
 
-                const st = state.get(guildID) ?? { runs: 0, day: today };
+                const st = state.get(guildID) ?? { runs: 0, day: today, running: false };
                 if (st.day !== today) {
                     st.runs = 0;
                     st.day = today;
                 }
+
+                if (st.running) continue;
 
                 const minGap = req.data.intervalMinutes * 60 * 1000;
                 const now = Date.now();
@@ -35,9 +37,14 @@ export function startHousingScheduler(client: Client) {
                 const capOK = st.runs < req.data.timesPerDay;
 
                 if (gapOK && capOK) {
-                    await refreshHousing(client, guildID);
-                    st.last = now;
-                    st.runs += 1;
+                    st.running = true;
+                    try {
+                        await refreshHousing(client, guildID);
+                        st.last = Date.now();
+                        st.runs += 1;
+                    } finally {
+                        st.running = false;
+                    }
                     state.set(guildID, st);
                 }
             } catch (err) {
