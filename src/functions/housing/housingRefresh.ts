@@ -7,6 +7,7 @@ import { configManager } from '../../handlers/configHandler.js';
 import { HousingRequired } from '../../schemas/housing.js';
 import { PaissaProvider, type Plot } from './housingProvider.paissa.js';
 import { plotEmbed } from '../../commands/housing/embed.js';
+import { threadManager } from '../../lib/threadManager.js';
 
 type MsgRecord = {
   channelId: string;
@@ -43,8 +44,11 @@ function plotHash(p: Plot): string {
 
 
 export async function refreshHousing(client: Client, guildID: string) {
-  const startedAt = Date.now();
-  logger.info(`[🏠Housing][${guildID}] Refresh started for the Server (AUTO)`);
+  return threadManager.run(
+    'housing:refresh',
+    async () => {
+      const startedAt = Date.now();
+      logger.info(`[🏠Housing][${guildID}] Refresh started for the Server (AUTO)`);
 
   // 1) Config laden & validieren
   const config = await configManager.get(guildID).catch((err: any) => {
@@ -329,8 +333,7 @@ export async function refreshHousing(client: Client, guildID: string) {
         hash: plotHash(plot),
         ...(plot.lottery?.phaseUntil ? { deleteAt: plot.lottery.phaseUntil } : {})
       };
-      
-      logger.info(`[🏠Housing][${guildID}] Refresh Ended for the Server`);
+
       added++;
     }
   }
@@ -340,7 +343,12 @@ export async function refreshHousing(client: Client, guildID: string) {
 
   const elapsedMs = Date.now() - startedAt;
 
+  logger.info(`[🏠Housing][${guildID}] Refresh Ended for the Server`);
+
   return { added, removed, updated, elapsedMs };
+    },
+    { guildId: guildID, blockWith: ['housing:start'] }
+  );
 }
 
 /** Safe write helper mit Logging */

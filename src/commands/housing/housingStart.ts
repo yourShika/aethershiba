@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Plot } from '../../functions/housing/housingProvider.paissa.js';
+import { threadManager } from '../../lib/threadManager.js';
 
 const provider = new PaissaProvider();
 
@@ -174,76 +175,82 @@ export default {
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-    const plots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
-    for (const world of hc.worlds) {
-      const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
-      plots.push(...p);
-    }
-
-    if (plots.length === 0) {
-      await interaction.editReply({ content: 'No free plots available.' });
-      return;
-    }
-
-    const byDistrict = new Map<string, typeof plots>();
-    for (const p of plots) {
-      const arr = byDistrict.get(p.district) ?? [];
-      arr.push(p);
-      byDistrict.set(p.district, arr);
-    }
-
-    const mention = [
-      hc.pingUserId ? `<@${hc.pingUserId}>` : null,
-      hc.pingRoleId ? `<@&${hc.pingRoleId}>` : null,
-    ]
-      .filter(Boolean)
-      .join(' ');
-    const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
-    let store: Record<string, { channelId: string; threads: Record<string, string>; messages: Record<string, { threadId: string; messageId: string; hash: string }> }> = {};
-    try {
-      const raw = await readFile(filePath, 'utf8');
-      store = JSON.parse(raw);
-    } catch {
-      store = {};
-    }
-
-    const rec = store[guildID] ?? { channelId: hc.channelId, threads: {}, messages: {} };
-    rec.channelId = hc.channelId;
-    store[guildID] = rec;
-
-    let total = 0;
-    for (const [district, list] of byDistrict) {
-      let threadId = rec.threads[district];
-      let thread: ForumChannel | any = threadId
-        ? await interaction.client.channels.fetch(threadId).catch(() => null)
-        : null;
-
-      for (const p of list) {
-        const key = plotKey(p);
-        if (rec.messages[key]) continue;
-
-        if (!thread) {
-          const { embed, attachment } = plotEmbed(p);
-          const msg: any = { embeds: [embed], files: attachment ? [attachment] : [] };
-          if (mention) msg.content = mention;
-          thread = await (ch as ForumChannel).threads.create({ name: district, message: msg });
-          rec.threads[district] = thread.id;
-          const starter = await thread.fetchStarterMessage();
-          rec.messages[key] = { threadId: thread.id, messageId: starter?.id ?? '', hash: plotHash(p) };
-        } else {
-          const { embed, attachment } = plotEmbed(p);
-          const m: any = { embeds: [embed], files: attachment ? [attachment] : [] };
-          if (mention) m.content = mention;
-          const sent = await thread.send(m);
-          rec.messages[key] = { threadId: thread.id, messageId: sent.id, hash: plotHash(p) };
+    await threadManager.run(
+      'housing:start',
+      async () => {
+        const plots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
+        for (const world of hc.worlds) {
+          const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
+          plots.push(...p);
         }
-        total++;
+
+      if (plots.length === 0) {
+        await interaction.editReply({ content: 'No free plots available.' });
+        return;
       }
-    }
 
-    await writeFile(filePath, JSON.stringify(store, null, 2), 'utf8');
+      const byDistrict = new Map<string, typeof plots>();
+      for (const p of plots) {
+        const arr = byDistrict.get(p.district) ?? [];
+        arr.push(p);
+        byDistrict.set(p.district, arr);
+      }
 
-    await interaction.editReply({ content: `Posted ${total} plots across ${byDistrict.size} districts to <#${hc.channelId}>` });
+      const mention = [
+        hc.pingUserId ? `<@${hc.pingUserId}>` : null,
+        hc.pingRoleId ? `<@&${hc.pingRoleId}>` : null,
+      ]
+        .filter(Boolean)
+        .join(' ');
+      const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
+      let store: Record<string, { channelId: string; threads: Record<string, string>; messages: Record<string, { threadId: string; messageId: string; hash: string }> }> = {};
+      try {
+        const raw = await readFile(filePath, 'utf8');
+        store = JSON.parse(raw);
+      } catch {
+        store = {};
+      }
+
+      const rec = store[guildID] ?? { channelId: hc.channelId, threads: {}, messages: {} };
+      rec.channelId = hc.channelId;
+      store[guildID] = rec;
+
+      let total = 0;
+      for (const [district, list] of byDistrict) {
+        let threadId = rec.threads[district];
+        let thread: ForumChannel | any = threadId
+          ? await interaction.client.channels.fetch(threadId).catch(() => null)
+          : null;
+
+        for (const p of list) {
+          const key = plotKey(p);
+          if (rec.messages[key]) continue;
+
+          if (!thread) {
+            const { embed, attachment } = plotEmbed(p);
+            const msg: any = { embeds: [embed], files: attachment ? [attachment] : [] };
+            if (mention) msg.content = mention;
+            thread = await (ch as ForumChannel).threads.create({ name: district, message: msg });
+            rec.threads[district] = thread.id;
+            const starter = await thread.fetchStarterMessage();
+            rec.messages[key] = { threadId: thread.id, messageId: starter?.id ?? '', hash: plotHash(p) };
+          } else {
+            const { embed, attachment } = plotEmbed(p);
+            const m: any = { embeds: [embed], files: attachment ? [attachment] : [] };
+            if (mention) m.content = mention;
+            const sent = await thread.send(m);
+            rec.messages[key] = { threadId: thread.id, messageId: sent.id, hash: plotHash(p) };
+          }
+          total++;
+        }
+      }
+
+      await writeFile(filePath, JSON.stringify(store, null, 2), 'utf8');
+
+        await interaction.editReply({ content: `Posted ${total} plots across ${byDistrict.size} districts to <#${hc.channelId}>` });
+      },
+      { guildId: guildID, blockWith: ['housing:refresh'] }
+    );
   },
 
   async autocomplete(interaction: AutocompleteInteraction) {
