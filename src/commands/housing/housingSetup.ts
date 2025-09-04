@@ -201,8 +201,13 @@ export default {
       'housing:setup',
       async () => {
         const plots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
+        const now = Date.now();
         for (const world of hc.worlds) {
-          const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
+          const p = await provider
+            .fetchFreePlots(hc.dataCenter, world, hc.districts)
+            .then(list =>
+              list.filter(pl => !(pl.lottery?.phaseUntil && pl.lottery.phaseUntil <= now)),
+            );
           plots.push(...p);
         }
 

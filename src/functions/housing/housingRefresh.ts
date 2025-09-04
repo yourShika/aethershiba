@@ -171,10 +171,12 @@ export async function refreshHousing(client: Client, guildID: string) {
     return { added: 0, removed, updated: 0 };
   }
 
+  const nowMs = Date.now();
   for (const world of worlds) {
     try {
       const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
-      allPlots.push(...p);
+      const valid = p.filter(pl => !(pl.lottery?.phaseUntil && pl.lottery.phaseUntil <= nowMs));
+      allPlots.push(...valid);
     } catch (e: any) {
       logger.error(`[🏠Housing][${guildID}] Provider-Fehler (world=${world}): ${String(e)}`);
     }

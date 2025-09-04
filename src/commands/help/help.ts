@@ -14,20 +14,23 @@ const command: Command = {
         // Import the command list at runtime to avoid circular deps during module load.
         const { commands } = await import('../../handlers/commandInit.js');
 
-        const embed = new EmbedBuilder()
-            .setTitle('Verfügbare Befehle');
+        const sorted = [...commands].sort((a, b) => a.data.name.localeCompare(b.data.name));
+        const embed = new EmbedBuilder().setTitle('Verfügbare Befehle');
 
-
-        // Add each known command to the embed so users can see what exists.
-        for (const cmd of commands.slice(0, 25)) {
-            embed.addFields({ name: `/${cmd.data.name}`, value: cmd.data.description || 'Keine Beschreibung' });
+        for (const cmd of sorted.slice(0, 25)) {
+            const emoji = cmd.emoji ?? '❔';
+            embed.addFields({
+                name: `${emoji} /${cmd.data.name}`,
+                value: cmd.data.description || 'Keine Beschreibung',
+            });
         }
 
-        await interaction.reply({ 
-            embeds: [embed], 
+        await interaction.reply({
+            embeds: [embed],
             flags: MessageFlags.Ephemeral,
         });
     },
+    emoji: '❓',
 };
 
 export default command;

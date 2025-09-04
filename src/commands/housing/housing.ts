@@ -11,6 +11,7 @@ import type { Command } from "../../handlers/commandHandler";
 import setup from './housingSetup';
 import refresh from './housingRefresh';
 import research from './housingResearch';
+import info from './housingInfo';
 
 type Sub = {
     name: string;
@@ -20,7 +21,7 @@ type Sub = {
     autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
 };
 
-const SUBS: Sub[] = [setup, refresh, research];
+const SUBS: Sub[] = [setup, refresh, research, info];
 
 export const data = (() => {
     const command = new SlashCommandBuilder()
@@ -53,4 +54,4 @@ export async function autocomplete(interaction: AutocompleteInteraction) {
     await entry.autocomplete(interaction);
 }
 
-export default { data, execute, autocomplete } satisfies Command;
+export default { data, execute, autocomplete, emoji: '🏠' } satisfies Command;
