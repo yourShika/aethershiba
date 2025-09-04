@@ -3,7 +3,7 @@ import { configManager } from '../../handlers/configHandler';
 import { HousingRequired } from '../../schemas/housing';
 import { refreshHousing } from './housingRefresh';
 import { logError } from '../../handlers/errorHandler.js';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 type S = { last?: number; runs: number; day: string; running: boolean };
@@ -32,6 +32,7 @@ async function saveState() {
         obj[gid] = rec;
     }
     try {
+        await mkdir(path.dirname(stateFile), { recursive: true });
         await writeFile(stateFile, JSON.stringify(obj, null, 2), 'utf8');
     } catch (err) {
         logError('housing scheduler state save', err);

@@ -1,7 +1,7 @@
 import { Client, ForumChannel, ChannelType, ThreadChannel } from 'discord.js';
 import type { TextBasedChannel } from 'discord.js';
 import path from 'node:path';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { logger } from '../../lib/logger.js';
 import { configManager } from '../../handlers/configHandler.js';
 import { HousingRequired } from '../../schemas/housing.js';
@@ -361,6 +361,7 @@ export async function refreshHousing(client: Client, guildID: string) {
 /** Safe write helper mit Logging */
 async function writeSafe(fp: string, store: Record<string, MsgRecord>, guildId: string) {
   try {
+    await mkdir(path.dirname(fp), { recursive: true });
     await writeFile(fp, JSON.stringify(store, null, 2), 'utf8');
     logger.info(
       `[🏠Housing][${guildId}] State gespeichert (${fp}) | threads=${Object.keys(store[guildId]?.threads ?? {}).length} messages=${Object.keys(store[guildId]?.messages ?? {}).length}`

@@ -1,5 +1,5 @@
 import { messageLink, type Client, ChannelType, type TextBasedChannel } from 'discord.js';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { logger } from '../lib/logger';
 
@@ -112,6 +112,7 @@ export function startHousingMessageWatcher(client: Client) {
       // 3) Store zurückschreiben (nur wenn Änderungen)
       if (changed) {
         try {
+          await mkdir(path.dirname(filePath), { recursive: true });
           await writeFile(filePath, JSON.stringify(store, null, 2), 'utf8');
           logger.info(`Änderungen am Store gespeichert: removed=${removed}, checked=${checked}`);
         } catch (err) {
