@@ -35,6 +35,18 @@ export async function add(g: string, key: string) {
     }
 }
 
+function norm(v: string) {
+    return v.replace(/^the\s+/i, '').trim().toLowerCase();
+}
+
 export function makeKey(p: { dataCenter: string; world: string; district: string; ward: number; plot: number; lottery: { state: string; endsAt?: string}}) {
-    return [p.dataCenter, p.world, p.district, p.ward, p.plot, p.lottery.state, p.lottery.endsAt ?? ''].join(':');
+    return [
+        norm(p.dataCenter),
+        norm(p.world),
+        norm(p.district),
+        p.ward,
+        p.plot,
+        p.lottery.state,
+        p.lottery.endsAt ?? ''
+    ].join(':');
 }
