@@ -17,6 +17,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Plot } from '../../functions/housing/housingProvider.paissa.js';
 import { threadManager } from '../../lib/threadManager.js';
+import { logger } from '../../lib/logger.js';
 
 const provider = new PaissaProvider();
 
@@ -25,7 +26,20 @@ function plotKey(p: Plot): string {
 }
 
 function plotHash(p: Plot): string {
-  return JSON.stringify(p);
+  const stable = {
+    dataCenter: p.dataCenter,
+    world: p.world,
+    district: p.district,
+    ward: p.ward,
+    plot: p.plot,
+    size: p.size,
+    price: p.price,
+    lottery: {
+      phaseUntil: p.lottery?.phaseUntil ?? null,
+      entrants: p.lottery?.entries ?? null,
+    },
+  };
+  return JSON.stringify(stable);
 }
 
 function splitCommalist(input: string): string[] {
@@ -68,7 +82,7 @@ function buildAutocompleteChoices(
 }
 
 export default {
-  name: 'start',
+  name: 'setup',
   description: 'Post a list of free housing plots grouped by district',
   build(sc: SlashCommandSubcommandBuilder) {
     sc
@@ -173,10 +187,18 @@ export default {
       return;
     }
 
+    if (threadManager.isLocked('housing:refresh', { guildId: guildID })) {
+      await interaction.reply({
+        content: 'Housing refresh is currently running. Please try again later.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     await threadManager.run(
-      'housing:start',
+      'housing:setup',
       async () => {
         const plots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
         for (const world of hc.worlds) {
@@ -233,19 +255,33 @@ export default {
             thread = await (ch as ForumChannel).threads.create({ name: district, message: msg });
             rec.threads[district] = thread.id;
             const starter = await thread.fetchStarterMessage();
-            rec.messages[key] = { threadId: thread.id, messageId: starter?.id ?? '', hash: plotHash(p) };
+            rec.messages[key] = {
+              threadId: thread.id,
+              messageId: starter?.id ?? '',
+              hash: plotHash(p),
+              ...(p.lottery?.phaseUntil ? { deleteAt: p.lottery.phaseUntil } : {}),
+            };
           } else {
             const { embed, attachment } = plotEmbed(p);
             const m: any = { embeds: [embed], files: attachment ? [attachment] : [] };
             if (mention) m.content = mention;
             const sent = await thread.send(m);
-            rec.messages[key] = { threadId: thread.id, messageId: sent.id, hash: plotHash(p) };
+            rec.messages[key] = {
+              threadId: thread.id,
+              messageId: sent.id,
+              hash: plotHash(p),
+              ...(p.lottery?.phaseUntil ? { deleteAt: p.lottery.phaseUntil } : {}),
+            };
           }
           total++;
         }
       }
 
-      await writeFile(filePath, JSON.stringify(store, null, 2), 'utf8');
+      try {
+        await writeFile(filePath, JSON.stringify(store, null, 2), 'utf8');
+      } catch (err) {
+        logger.error(`[🏠Housing][${guildID}] Fehler beim Schreiben von ${filePath}: ${String(err)}`);
+      }
 
         await interaction.editReply({ content: `Posted ${total} plots across ${byDistrict.size} districts to <#${hc.channelId}>` });
       },

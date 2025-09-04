@@ -70,6 +70,12 @@ export class ThreadManager {
 
     return this.exec([...keys], fn);
   }
+
+  isLocked(task: string, opts: ThreadOptions = {}): boolean {
+    const { guildId } = opts;
+    const key = guildId ? `${task}:${guildId}` : task;
+    return this.queues.has(key);
+  }
 }
 
 export const threadManager = new ThreadManager();

@@ -347,7 +347,7 @@ export async function refreshHousing(client: Client, guildID: string) {
 
   return { added, removed, updated, elapsedMs };
     },
-    { guildId: guildID, blockWith: ['housing:start'] }
+    { guildId: guildID, blockWith: ['housing:setup'] }
   );
 }
 
