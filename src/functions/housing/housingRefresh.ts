@@ -21,8 +21,18 @@ type MsgRecord = {
 const provider = new PaissaProvider();
 const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
 
+function normDistrict(d: string): string {
+  return d.replace(/^the\s+/i, '').trim().toLowerCase();
+}
+
 function plotKey(p: Plot): string {
-  return [p.dataCenter, p.world, p.district, p.ward, p.plot].join(':');
+  return [
+    p.dataCenter.toLowerCase(),
+    p.world.toLowerCase(),
+    normDistrict(p.district),
+    p.ward,
+    p.plot
+  ].join(':');
 }
 
 function plotHash(p: Plot): string {
