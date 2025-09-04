@@ -18,6 +18,8 @@ export interface Command {
     execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
     /** Optional handler for autocomplete interactions. */
     autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
+    /** Optional emoji shown in help listings. */
+    emoji?: string;
 }
 
 /**

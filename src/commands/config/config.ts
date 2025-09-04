@@ -33,4 +33,4 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     await entry.execute(interaction);
 }
 
-export default { data, execute };
+export default { data, execute, emoji: '⚙️' };
