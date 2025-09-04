@@ -74,10 +74,12 @@ export function startHousingScheduler(client: Client) {
                 if (gapOK && capOK) {
                     st.running = true;
                     try {
-                        await refreshHousing(client, guildID);
-                        st.last = Date.now();
-                        st.runs += 1;
-                        changed = true;
+                        const res = await refreshHousing(client, guildID);
+                        if (res) {
+                            st.last = Date.now();
+                            st.runs += 1;
+                            changed = true;
+                        }
                     } finally {
                         st.running = false;
                     }

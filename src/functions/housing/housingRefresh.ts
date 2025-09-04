@@ -112,6 +112,13 @@ export async function refreshHousing(client: Client, guildID: string) {
   rec.channelId = hc.channelId;
   store[guildID] = rec;
 
+  if (Object.keys(rec.messages).length === 0) {
+    logger.warn(
+      `[🏠Housing][${guildID}] No stored housing messages found – run /housing setup first. Aborting refresh.`
+    );
+    return null;
+  }
+
   // 3a) vorhandene Threads einlesen & Duplikate bereinigen
   const threadsByName = new Map<string, ThreadChannel[]>();
   try {

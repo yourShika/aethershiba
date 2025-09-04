@@ -10,12 +10,17 @@ export default {
       await interaction.reply({ content: 'This command can only be used in a guild.', flags: MessageFlags.Ephemeral });
       return;
     }
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const { added, removed, updated, elapsedMs = 0 } = await refreshHousing(interaction.client, guildID);
-    const secs = Math.floor(elapsedMs / 1000);
-    const hh = String(Math.floor(secs / 3600)).padStart(2, '0');
-    const mm = String(Math.floor((secs % 3600) / 60)).padStart(2, '0');
-    const ss = String(secs % 60).padStart(2, '0');
-    await interaction.editReply({ content: `Housing refreshed in ${hh}:${mm}:${ss}. ${added} added, ${removed} removed, ${updated} updated.` });
-  }
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const res = await refreshHousing(interaction.client, guildID);
+      if (!res) {
+        await interaction.editReply({ content: 'No housing messages found. Run /housing setup first.' });
+        return;
+      }
+      const { added, removed, updated, elapsedMs = 0 } = res;
+      const secs = Math.floor(elapsedMs / 1000);
+      const hh = String(Math.floor(secs / 3600)).padStart(2, '0');
+      const mm = String(Math.floor((secs % 3600) / 60)).padStart(2, '0');
+      const ss = String(secs % 60).padStart(2, '0');
+      await interaction.editReply({ content: `Housing refreshed in ${hh}:${mm}:${ss}. ${added} added, ${removed} removed, ${updated} updated.` });
+    }
 };
