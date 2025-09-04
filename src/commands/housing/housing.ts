@@ -8,7 +8,7 @@ import {
 } from "discord.js";
 import type { Command } from "../../handlers/commandHandler";
 
-import start from './housingStart';
+import setup from './housingSetup';
 import refresh from './housingRefresh';
 import research from './housingResearch';
 
@@ -20,7 +20,7 @@ type Sub = {
     autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
 };
 
-const SUBS: Sub[] = [start, refresh, research];
+const SUBS: Sub[] = [setup, refresh, research];
 
 export const data = (() => {
     const command = new SlashCommandBuilder()
