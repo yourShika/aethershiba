@@ -116,11 +116,13 @@ export default {
         return;
       }
 
-      const byDistrict = new Map<string, typeof plots>();
+      const byThread = new Map<string, typeof plots>();
+      const multiWorld = hc.worlds.length > 1;
       for (const p of plots) {
-        const arr = byDistrict.get(p.district) ?? [];
+        const name = multiWorld ? `${p.world} - ${p.district}` : p.district;
+        const arr = byThread.get(name) ?? [];
         arr.push(p);
-        byDistrict.set(p.district, arr);
+        byThread.set(name, arr);
       }
 
       const mention = [
@@ -147,8 +149,8 @@ export default {
       st[guildID] = rec;
 
       let total = 0;
-      for (const [district, list] of byDistrict) {
-        let threadId = rec.threads[district];
+      for (const [threadName, list] of byThread) {
+        let threadId = rec.threads[threadName];
         let thread: ForumChannel | any = threadId
           ? await interaction.client.channels.fetch(threadId).catch(() => null)
           : null;
@@ -161,8 +163,8 @@ export default {
               const { embed, attachment } = plotEmbed(p);
               const msg: any = { embeds: [embed], files: attachment ? [attachment] : [] };
               if (mention) msg.content = mention;
-              thread = await (ch as ForumChannel).threads.create({ name: district, message: msg });
-              rec.threads[district] = thread.id;
+              thread = await (ch as ForumChannel).threads.create({ name: threadName, message: msg });
+              rec.threads[threadName] = thread.id;
               const starter = await thread.fetchStarterMessage();
               rec.messages[key] = {
                 threadId: thread.id,
@@ -192,7 +194,7 @@ export default {
         logger.error(`[🏠Housing][${guildID}] Fehler beim Schreiben von ${filePath}: ${String(err)}`);
       }
 
-        await interaction.editReply({ content: `Posted ${total} plots across ${byDistrict.size} districts to <#${hc.channelId}>` });
+        await interaction.editReply({ content: `Posted ${total} plots across ${byThread.size} threads to <#${hc.channelId}>` });
       },
       { guildId: guildID, blockWith: ['housing:refresh', 'housing:reset'] }
     );
