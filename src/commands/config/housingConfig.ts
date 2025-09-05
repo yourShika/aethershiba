@@ -39,7 +39,6 @@ async function handle(interaction: ChatInputCommandInteraction) {
         districts: h.districts ?? [],
         channelId: h.channelId,
         timesPerDay: h.timesPerDay,
-        intervalMinutes: h.intervalMinutes,
         pingUserId: h.pingUserId,
         pingRoleId: h.pingRoleId,
     });
@@ -144,7 +143,6 @@ async function handle(interaction: ChatInputCommandInteraction) {
       districts: h.districts ?? [],
       channelId: h.channelId,
       timesPerDay: h.timesPerDay,
-      intervalMinutes: h.intervalMinutes,
       pingUserId: h.pingUserId,
       pingRoleId: h.pingRoleId,
     }),
@@ -178,7 +176,6 @@ export function summaryContent(s: {
   districts: string[];
   channelId?: string;
   timesPerDay?: number;
-  intervalMinutes?: number;
   pingUserId?: string;
   pingRoleId?: string;
 }) {
@@ -188,11 +185,7 @@ export function summaryContent(s: {
 - Worlds: ${s.worlds.join(", ") || "—"}
 - Districts: ${s.districts.join(", ") || "—"}
 - Channel: ${s.channelId ? `<#${s.channelId}>` : "—"}
-- Auto: ${
-    s.timesPerDay && s.intervalMinutes
-      ? `${s.timesPerDay}×/Tag, alle ${s.intervalMinutes} Min`
-      : "—"
-  }
+- Auto: ${s.timesPerDay ? `${s.timesPerDay}×/Tag` : "—"}
 - Ping User: ${s.pingUserId ? `<@${s.pingUserId}>` : "—"}
 - Ping Role: ${s.pingRoleId ? `<@&${s.pingRoleId}>` : "—"}`;
 }

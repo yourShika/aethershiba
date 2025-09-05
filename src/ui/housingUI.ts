@@ -9,7 +9,6 @@ export type HousingDraft = {
     districts?: string[];
     channelId?: string;
     timesPerDay?: number;
-    intervalMinutes?: number;
     pingUserId?: string;
     pingRoleId?: string;
     /** ID of the summary message so it can be edited later. */

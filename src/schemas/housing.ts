@@ -10,13 +10,12 @@ export const housingPartial = z.object({
     districts: z.array(z.string()).optional(),
     channelId: z.string().min(1).optional(),
     timesPerDay: z.number().int().min(1).max(3).optional(),
-    intervalMinutes: z.number().int().min(480).max(1440).optional(),
     pingUserId: z.string().min(1).optional(),
     pingRoleId: z.string().min(1).optional(),
 });
 
 // Minimal schema required for posting housing listings manually.
-// Scheduler-specific fields like timesPerDay/intervalMinutes are omitted.
+// Scheduler-specific fields like timesPerDay are omitted.
 export const HousingStart = z.object({
     enabled: z.literal(true),
     dataCenter: z.string().min(1),
@@ -36,7 +35,6 @@ export const HousingRequired = z.object({
     districts: z.array(z.string()).nonempty(),
     channelId: z.string().min(1),
     timesPerDay: z.number().int().min(1).max(3),
-    intervalMinutes: z.number().int().min(480).max(1440),
     pingUserId: z.string().min(1).optional(),
     pingRoleId: z.string().min(1).optional(),
 });

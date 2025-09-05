@@ -29,7 +29,6 @@ async function refreshSummary(interaction: RepliableInteraction, key: string) {
                 districts: draft.districts ?? [],
                 ...(draft.channelId ? { channelId: draft.channelId } : {}),
                 ...(draft.timesPerDay !== undefined ? { timesPerDay: draft.timesPerDay } : {}),
-                ...(draft.intervalMinutes !== undefined ? { intervalMinutes: draft.intervalMinutes } : {}),
                 ...(draft.pingUserId ? { pingUserId: draft.pingUserId } : {}),
                 ...(draft.pingRoleId ? { pingRoleId: draft.pingRoleId } : {}),
             }),
@@ -50,25 +49,6 @@ function buildTimesRow(selected?: number) {
                         .setLabel(`${n}×/Tag`)
                         .setValue(String(n))
                         .setDefault(selected === n)
-                ),
-            )
-            .setMinValues(1)
-            .setMaxValues(1),
-    );
-}
-
-function buildIntervalRow(selected?: number) {
-    const opts = [480, 720, 960, 1440];
-    return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder()
-            .setCustomId(HOUSING_PREFIX + 'interval')
-            .setPlaceholder('Abstand (Minuten)')
-            .addOptions(
-                opts.map(m =>
-                    new StringSelectMenuOptionBuilder()
-                        .setLabel(`${Math.floor(m / 60)}h`)
-                        .setValue(String(m))
-                        .setDefault(selected === m)
                 ),
             )
             .setMinValues(1)
@@ -277,7 +257,6 @@ export function register(client: Client) {
                             content: 'Automatische Aktualisierung konfigurieren:',
                             components: [
                                 buildTimesRow(draft?.timesPerDay),
-                                buildIntervalRow(draft?.intervalMinutes),
                             ],
                             flags: MessageFlags.Ephemeral,
                         });
@@ -293,18 +272,6 @@ export function register(client: Client) {
                         await interaction.update({ components: rows });
                         await refreshSummary(interaction, key);
                         await transientReply(interaction, `Runs pro Tag auf **${timesPerDay}** gesetzt.`);
-                    }
-                    break;
-                case 'interval':
-                    if (interaction.isStringSelectMenu()) {
-                        const intervalMinutes = Number(interaction.values[0]);
-                        const draft = setDraft(key, { intervalMinutes });
-                        await configManager.update(interaction.guildId, 'housing', draft);
-                        const rows: any[] = [...interaction.message.components];
-                        rows[1] = buildIntervalRow(intervalMinutes);
-                        await interaction.update({ components: rows });
-                        await refreshSummary(interaction, key);
-                        await transientReply(interaction, `Intervall auf **${intervalMinutes}** Minuten gesetzt.`);
                     }
                     break;
                 default:
