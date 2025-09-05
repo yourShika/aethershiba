@@ -74,7 +74,7 @@ export function startHousingScheduler(client: Client) {
                     threadManager.isLocked('housing:reset', { guildId: guildID }) 
                 ) continue;
 
-                const minGap = req.data.intervalMinutes * 60 * 1000;
+                const minGap = (1440 / req.data.timesPerDay) * 60 * 1000;
                 const now = Date.now();
                 const gapOK = !st.last || now - st.last >= minGap;
                 const capOK = st.runs < req.data.timesPerDay;
