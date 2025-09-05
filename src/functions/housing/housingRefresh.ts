@@ -164,6 +164,7 @@ export async function refreshHousing(client: Client, guildID: string) {
   const worlds: string[] = (hc.worlds && Array.isArray(hc.worlds) && hc.worlds.length > 0)
     ? hc.worlds
     : [];
+  const multiWorld = worlds.length > 1;
 
   if (!worlds.length) {
     logger.warn(`[🏠Housing][${guildID}] Keine Worlds in der Config. Abbruch.`);
@@ -279,14 +280,15 @@ export async function refreshHousing(client: Client, guildID: string) {
     const { embed, attachment } = plotEmbed(plot, now);
     (embed as any).timestamp = now.toISOString();
 
-    // Thread je Bezirk
-    let threadId = rec.threads[plot.district];
+    // Thread je Bezirk/Welt
+    const threadName = multiWorld ? `${plot.world} - ${plot.district}` : plot.district;
+    let threadId = rec.threads[threadName];
     let thread: any = null;
 
     if (threadId) {
       thread = await client.channels.fetch(threadId).catch((e) => {
         logger.warn(
-          `[🏠Housing][${guildID}] Gespeicherten Thread nicht fetchbar (district=${plot.district}, threadId=${threadId}): ${String(
+          `[🏠Housing][${guildID}] Gespeicherten Thread nicht fetchbar (thread=${threadName}, threadId=${threadId}): ${String(
             e
           )}`
         );
@@ -295,7 +297,7 @@ export async function refreshHousing(client: Client, guildID: string) {
 
       if (!(thread && 'isTextBased' in thread && (thread as any).isTextBased())) {
         logger.info(
-          `[🏠Housing][${guildID}] Gespeicherter Thread unbrauchbar → Erzeuge neuen (district=${plot.district})`
+          `[🏠Housing][${guildID}] Gespeicherter Thread unbrauchbar → Erzeuge neuen (thread=${threadName})`
         );
         thread = null;
       }
@@ -308,19 +310,19 @@ export async function refreshHousing(client: Client, guildID: string) {
 
       thread = await forum.threads
         .create({
-          name: plot.district,
+          name: threadName,
           message: starterMsg
         })
         .catch((e) => {
           logger.error(
-            `[🏠Housing][${guildID}] Thread-Erstellung fehlgeschlagen (district=${plot.district}): ${String(e)}`
+            `[🏠Housing][${guildID}] Thread-Erstellung fehlgeschlagen (thread=${threadName}): ${String(e)}`
           );
           return null;
         });
 
       if (!thread) continue;
 
-      rec.threads[plot.district] = thread.id;
+      rec.threads[threadName] = thread.id;
 
       const starter = await thread.fetchStarterMessage().catch(() => null);
       const starterId = starter?.id ?? '';
@@ -341,7 +343,7 @@ export async function refreshHousing(client: Client, guildID: string) {
 
       const sent = await threadChan.send(msg).catch((e) => {
         logger.error(
-          `[🏠Housing][${guildID}] Senden in Thread fehlgeschlagen (district=${plot.district}): ${String(e)}`
+          `[🏠Housing][${guildID}] Senden in Thread fehlgeschlagen (thread=${threadName}): ${String(e)}`
         );
         return null;
       });
