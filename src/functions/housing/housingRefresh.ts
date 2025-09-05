@@ -164,7 +164,6 @@ export async function refreshHousing(client: Client, guildID: string) {
   const worlds: string[] = (hc.worlds && Array.isArray(hc.worlds) && hc.worlds.length > 0)
     ? hc.worlds
     : [];
-  const multiWorld = worlds.length > 1;
 
   if (!worlds.length) {
     logger.warn(`[🏠Housing][${guildID}] Keine Worlds in der Config. Abbruch.`);
@@ -281,7 +280,7 @@ export async function refreshHousing(client: Client, guildID: string) {
     (embed as any).timestamp = now.toISOString();
 
     // Thread je Bezirk/Welt
-    const threadName = multiWorld ? `${plot.world} - ${plot.district}` : plot.district;
+    const threadName = `${plot.world} - ${plot.district}`;
     let threadId = rec.threads[threadName];
     let thread: any = null;
 

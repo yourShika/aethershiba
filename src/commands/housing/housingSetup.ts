@@ -117,9 +117,8 @@ export default {
       }
 
       const byThread = new Map<string, typeof plots>();
-      const multiWorld = hc.worlds.length > 1;
       for (const p of plots) {
-        const name = multiWorld ? `${p.world} - ${p.district}` : p.district;
+        const name = `${p.world} - ${p.district}`;
         const arr = byThread.get(name) ?? [];
         arr.push(p);
         byThread.set(name, arr);
