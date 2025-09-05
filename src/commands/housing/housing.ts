@@ -26,7 +26,8 @@ const SUBS: Sub[] = [setup, refresh, research, info];
 export const data = (() => {
     const command = new SlashCommandBuilder()
         .setName('housing')
-        .setDescription('Housing utilities');
+        .setDescription('Housing utilities')
+        .setDMPermission(true);
     for (const s of SUBS) {
         command.addSubcommand(sc => {
             sc.setName(s.name).setDescription(s.description);
