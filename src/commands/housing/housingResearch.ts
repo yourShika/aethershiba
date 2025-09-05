@@ -99,7 +99,10 @@ export default {
     const districts = splitCommalist(districtsStr);
     const start = Date.now();
     const plots = await provider.fetchFreePlots(dc, world, districts);
-    let filtered = plots;
+    const now = Date.now();
+    let filtered = plots.filter(
+      p => p.ward > 0 && (p.lottery.phaseUntil === undefined || p.lottery.phaseUntil > now),
+    );
     if (fc !== 'beides') {
       const want = fc === 'ja';
       filtered = filtered.filter(p => p.fcOnly === want);
