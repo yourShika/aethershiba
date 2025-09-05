@@ -107,6 +107,39 @@ export function startHousingMessageWatcher(client: Client) {
             );
           }
         }
+
+        // 2b) Threads überprüfen
+        for (const [name, threadId] of Object.entries(rec.threads)) {
+          const thread = await client.channels.fetch(threadId).catch((err) => {
+            logger.warn(
+              `Fetch Thread fehlgeschlagen (threadId=${threadId}, guildId=${guildId}): ${String(err)}`
+            );
+            return null;
+          });
+
+          if (
+            !thread ||
+            (thread.type !== ChannelType.PublicThread &&
+              thread.type !== ChannelType.PrivateThread &&
+              !('isTextBased' in thread && thread.isTextBased()))
+          ) {
+            delete rec.threads[name];
+            changed = true;
+            removed++;
+            logger.info(
+              `Thread fehlt/kein Textkanal → Thread-Eintrag entfernt (name=${name}, threadId=${threadId}, guildId=${guildId})`
+            );
+          }
+        }
+
+        if (
+          Object.keys(rec.messages).length === 0 &&
+          Object.keys(rec.threads).length === 0
+        ) {
+          delete store[guildId];
+          changed = true;
+          logger.info(`Keine Einträge mehr für Guild ${guildId} → Record entfernt`);
+        }
       }
 
       // 3) Store zurückschreiben (nur wenn Änderungen)
