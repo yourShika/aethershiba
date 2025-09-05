@@ -12,6 +12,7 @@ import setup from './housingSetup';
 import refresh from './housingRefresh';
 import research from './housingResearch';
 import info from './housingInfo';
+import reset from './housingReset';
 
 type Sub = {
     name: string;
@@ -21,7 +22,7 @@ type Sub = {
     autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
 };
 
-const SUBS: Sub[] = [setup, refresh, research, info];
+const SUBS: Sub[] = [setup, refresh, reset, research, info];
 
 export const data = (() => {
     const command = new SlashCommandBuilder()

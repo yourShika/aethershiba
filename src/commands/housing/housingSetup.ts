@@ -1,18 +1,13 @@
 import {
   ChannelType,
   MessageFlags,
-  SlashCommandSubcommandBuilder,
   type ChatInputCommandInteraction,
   type ForumChannel,
-  type AutocompleteInteraction,
 } from 'discord.js';
 import { configManager } from '../../handlers/configHandler.js';
 import { HousingStart } from '../../schemas/housing.js';
 import { PaissaProvider } from '../../functions/housing/housingProvider.paissa.js';
 import { plotEmbed } from './embed.js';
-import { DATACENTERS, DISTRICT_OPTIONS } from '../../const/housing/housing.js';
-import { getWorldNamesByDC } from '../../functions/housing/housingWorlds.js';
-import { z } from 'zod';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Plot } from '../../functions/housing/housingProvider.paissa.js';
@@ -42,83 +37,10 @@ function plotHash(p: Plot): string {
   return JSON.stringify(stable);
 }
 
-function splitCommalist(input: string): string[] {
-  const seen = new Set<string>();
-  for (const raw of input.split(',')) {
-    const s = raw.trim();
-    if (!s) continue;
-    const key = s.toLowerCase();
-    if (!seen.has(key)) seen.add(key);
-  }
-  return Array.from(seen).map(k => {
-    // Alles in lowercase zurückgeben
-    return k;
-  });
-}
-
-function buildAutocompleteChoices(
-  currentValue: string,
-  allOptions: string[],
-  limit = 25
-): { name: string; value: string }[] {
-  // Teile nur an Kommas – NICHT an Spaces, damit „Lavender Beds“ intakt bleibt
-  const parts = currentValue.split(',');
-  const lastRaw = parts.pop() ?? '';
-  const last = lastRaw.trim();
-
-  const alreadyRaw = parts.map(s => s.trim()).filter(Boolean);
-  // case-insensitive Dedupe für already
-  const already = Array.from(new Set(alreadyRaw.map(a => a.toLowerCase())));
-
-  const choices = allOptions
-    .filter(opt => !already.includes(opt.toLowerCase()))
-    .filter(opt => opt.toLowerCase().startsWith(last.toLowerCase()))
-    .slice(0, limit);
-
-  // Prefix = bereits gewählte (im Original, mit Komma+Space getrennt)
-  const prefix = alreadyRaw.length ? alreadyRaw.join(', ') + (lastRaw.length ? ', ' : ', ') : '';
-
-  return choices.map(opt => ({ name: opt, value: prefix + opt }));
-}
-
 export default {
   name: 'setup',
   description: 'Post a list of free housing plots grouped by district',
-  build(sc: SlashCommandSubcommandBuilder) {
-    sc
-      .addStringOption(opt =>
-        opt
-          .setName('mode')
-          .setDescription('Use saved config or provide values manually')
-          .setRequired(true)
-          .addChoices({ name: 'Config', value: 'config' }, { name: 'No Config', value: 'no_config' }),
-      )
-      .addStringOption(opt =>
-        opt
-          .setName('datacenter')
-          .setDescription('Datacenter (required for no_config)')
-          .addChoices(...DATACENTERS.map(dc => ({ name: dc, value: dc }))),
-      )
-      .addStringOption(opt =>
-        opt
-          .setName('worlds')
-          .setDescription('Comma-separated worlds (required for no_config)')
-          .setAutocomplete(true),
-      )
-      .addStringOption(opt =>
-        opt
-          .setName('districts')
-          .setDescription('Comma-separated districts (required for no_config)')
-          .setAutocomplete(true),
-      )
-      .addChannelOption(opt =>
-        opt
-          .setName('channel')
-          .setDescription('Target forum channel (required for no_config)')
-          .addChannelTypes(ChannelType.GuildForum),
-      );
-    return sc;
-  },
+
   async execute(interaction: ChatInputCommandInteraction) {
     const guildID = interaction.guildId;
     if (!guildID) {
@@ -126,75 +48,55 @@ export default {
       return;
     }
 
-    const mode = interaction.options.getString('mode', true);
-    let hc: z.infer<typeof HousingStart>;
-
-    if (mode === 'config') {
-      const config = await configManager.get(guildID);
-      const h = (config['housing'] as any) ?? null;
-      const ok = HousingStart.safeParse(h);
-      if (!ok.success) {
-        await interaction.reply({ content: 'Housing is not configured.', flags: MessageFlags.Ephemeral });
-        return;
-      }
-      hc = ok.data;
-    } else {
-      const dc = interaction.options.getString('datacenter', true);
-      const worldsStr = interaction.options.getString('worlds', true);
-      const districtsStr = interaction.options.getString('districts', true);
-      const chOpt = interaction.options.getChannel('channel', true);
-
-      if (!chOpt || chOpt.type !== ChannelType.GuildForum) {
-        await interaction.reply({ content: 'Provided channel is not a forum.', flags: MessageFlags.Ephemeral });
-        return;
-      }
-
-      const worlds = splitCommalist(worldsStr);
-      const districts = splitCommalist(districtsStr);
-
-      if (worlds.length === 0 || districts.length === 0) {
-        await interaction.reply({
-          content: 'Please provide at least one world and one district (comma-separated).',
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      const validWorlds = await getWorldNamesByDC(dc);
-      const invalid = worlds.filter(w => !validWorlds.some(v => v.toLowerCase() === w.toLowerCase()));
-      if (invalid.length > 0 ) {
-        await interaction.reply({
-          content:
-            `Some worlds do not belong to **${dc}**: ${invalid.join(', ')}\n` +
-            `Valid worlds for ${dc} are: ${validWorlds.join(', ')}`,
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      hc = {
-        enabled: true,
-        dataCenter: dc,
-        worlds: worlds as [string, ...string[]],
-        districts: districts as [string, ...string[]],
-        channelId: chOpt.id,
-      };
-    }
-
-    const ch = await interaction.client.channels.fetch(hc.channelId).catch(() => null);
-    if (!ch || ch.type !== ChannelType.GuildForum) {
-      await interaction.reply({ content: 'Configured channel could not be found or is not a forum.', flags: MessageFlags.Ephemeral });
+    if (
+      threadManager.isLocked('housing:setup', { guildId: guildID }) ||
+      threadManager.isLocked('housing:refresh', { guildId: guildID }) ||
+      threadManager.isLocked('housing:reset', { guildId: guildID }) 
+    ) {
+      await interaction.reply({
+        content: 'Another housing task is currently running. Please try again later.',
+        flags: MessageFlags.Ephemeral,
+      });
       return;
     }
 
-    if (threadManager.isLocked('housing:refresh', { guildId: guildID })) {
+    const config = await configManager.get(guildID);
+    const h = (config['housing'] as any) ?? null;
+    const ok = HousingStart.safeParse(h);
+
+    if (!ok.success) {
+      await interaction.reply({ content: 'Housing is not configured.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    const hc = ok.data;
+
+    const ch = await interaction.client.channels.fetch(hc.channelId).catch(() => null);
+    if (!ch || ch.type !== ChannelType.GuildForum) {
+      await interaction.reply({ 
+        content: 'Configured channel could not be found or is not a forum.', 
+        flags: MessageFlags.Ephemeral 
+      });
+      return;
+    }
+
+    const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
+    let store: Record<string, { channelId: string, threads: Record<string, string>; messages: Record<string, unknown> }> = {};
+    try {
+      const raw = await readFile(filePath, 'utf8');
+      store = JSON.parse(raw);
+    } catch {
+      store = {};
+    }
+    const rec = store[guildID];
+    if (rec && Object.keys(rec.messages).length > 0) {
       await interaction.reply({
         content: 'Housing refresh is currently running. Please try again later.',
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
-
+    
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     await threadManager.run(
@@ -205,9 +107,7 @@ export default {
         for (const world of hc.worlds) {
           const p = await provider
             .fetchFreePlots(hc.dataCenter, world, hc.districts)
-            .then(list =>
-              list.filter(pl => !(pl.lottery?.phaseUntil && pl.lottery.phaseUntil <= now)),
-            );
+            .then(list => list.filter(pl => pl.ward > 0 && !(pl.lottery?.phaseUntil && pl.lottery.phaseUntil <= now)));
           plots.push(...p);
         }
 
@@ -229,18 +129,22 @@ export default {
       ]
         .filter(Boolean)
         .join(' ');
-      const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
-      let store: Record<string, { channelId: string; threads: Record<string, string>; messages: Record<string, { threadId: string; messageId: string; hash: string }> }> = {};
+
+      let st: Record<string, { 
+        channelId: string; 
+        threads: Record<string, string>; 
+        messages: Record<string, 
+        { threadId: string; messageId: string; hash: string; deleteAt?: number }> }> = {};
       try {
         const raw = await readFile(filePath, 'utf8');
-        store = JSON.parse(raw);
+        st = JSON.parse(raw);
       } catch {
-        store = {};
+        st = {};
       }
 
-      const rec = store[guildID] ?? { channelId: hc.channelId, threads: {}, messages: {} };
+      const rec = st[guildID] ?? { channelId: hc.channelId, threads: {}, messages: {} };
       rec.channelId = hc.channelId;
-      store[guildID] = rec;
+      st[guildID] = rec;
 
       let total = 0;
       for (const [district, list] of byDistrict) {
@@ -253,67 +157,44 @@ export default {
           const key = plotKey(p);
           if (rec.messages[key]) continue;
 
-          if (!thread) {
-            const { embed, attachment } = plotEmbed(p);
-            const msg: any = { embeds: [embed], files: attachment ? [attachment] : [] };
-            if (mention) msg.content = mention;
-            thread = await (ch as ForumChannel).threads.create({ name: district, message: msg });
-            rec.threads[district] = thread.id;
-            const starter = await thread.fetchStarterMessage();
-            rec.messages[key] = {
-              threadId: thread.id,
-              messageId: starter?.id ?? '',
-              hash: plotHash(p),
-              ...(p.lottery?.phaseUntil ? { deleteAt: p.lottery.phaseUntil } : {}),
-            };
-          } else {
-            const { embed, attachment } = plotEmbed(p);
-            const m: any = { embeds: [embed], files: attachment ? [attachment] : [] };
-            if (mention) m.content = mention;
-            const sent = await thread.send(m);
-            rec.messages[key] = {
-              threadId: thread.id,
-              messageId: sent.id,
-              hash: plotHash(p),
-              ...(p.lottery?.phaseUntil ? { deleteAt: p.lottery.phaseUntil } : {}),
-            };
-          }
+            if (!thread) {
+              const { embed, attachment } = plotEmbed(p);
+              const msg: any = { embeds: [embed], files: attachment ? [attachment] : [] };
+              if (mention) msg.content = mention;
+              thread = await (ch as ForumChannel).threads.create({ name: district, message: msg });
+              rec.threads[district] = thread.id;
+              const starter = await thread.fetchStarterMessage();
+              rec.messages[key] = {
+                threadId: thread.id,
+                messageId: starter?.id ?? '',
+                hash: plotHash(p),
+                ...(p.lottery?.phaseUntil ? { deleteAt: p.lottery.phaseUntil } : {}),
+              };
+            } else {
+              const { embed, attachment } = plotEmbed(p);
+              const m: any = { embeds: [embed], files: attachment ? [attachment] : [] };
+              if (mention) m.content = mention;
+              const sent = await thread.send(m);
+              rec.messages[key] = {
+                threadId: thread.id,
+                messageId: sent.id,
+                hash: plotHash(p),
+                ...(p.lottery?.phaseUntil ? { deleteAt: p.lottery.phaseUntil } : {}),
+              };
+            }
           total++;
         }
       }
 
       try {
-        await writeFile(filePath, JSON.stringify(store, null, 2), 'utf8');
+        await writeFile(filePath, JSON.stringify(st, null, 2), 'utf8');
       } catch (err) {
         logger.error(`[🏠Housing][${guildID}] Fehler beim Schreiben von ${filePath}: ${String(err)}`);
       }
 
         await interaction.editReply({ content: `Posted ${total} plots across ${byDistrict.size} districts to <#${hc.channelId}>` });
       },
-      { guildId: guildID, blockWith: ['housing:refresh'] }
+      { guildId: guildID, blockWith: ['housing:refresh', 'housing:reset'] }
     );
   },
-
-  async autocomplete(interaction: AutocompleteInteraction) {
-    const focused = interaction.options.getFocused(true);
-
-    if (focused.name === 'worlds') {
-      const dc = interaction.options.getString('datacenter');
-      if (!dc) {
-        await interaction.respond([]); // erst Datacenter wählen
-        return;
-      }
-      const worlds = await getWorldNamesByDC(dc);
-      await interaction.respond(buildAutocompleteChoices(focused.value, worlds));
-      return;
-    }
-
-    if (focused.name === 'districts') {
-      const options = DISTRICT_OPTIONS.map(d => d.value);
-      await interaction.respond(buildAutocompleteChoices(focused.value, options));
-      return;
-    }
-
-    await interaction.respond([]);
-  }
 };

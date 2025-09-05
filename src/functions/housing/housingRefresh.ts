@@ -175,7 +175,9 @@ export async function refreshHousing(client: Client, guildID: string) {
   for (const world of worlds) {
     try {
       const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
-      const valid = p.filter(pl => !(pl.lottery?.phaseUntil && pl.lottery.phaseUntil <= nowMs));
+      const valid = p.filter(
+        (pl) => pl.ward > 0 && !(pl.lottery?.phaseUntil && pl.lottery.phaseUntil <= nowMs)
+      );
       allPlots.push(...valid);
     } catch (e: any) {
       logger.error(`[🏠Housing][${guildID}] Provider-Fehler (world=${world}): ${String(e)}`);
@@ -366,7 +368,7 @@ export async function refreshHousing(client: Client, guildID: string) {
 
   return { added, removed, updated, elapsedMs };
     },
-    { guildId: guildID, blockWith: ['housing:setup'] }
+    { guildId: guildID, blockWith: ['housing:setup', 'housing:reset'] }
   );
 }
 

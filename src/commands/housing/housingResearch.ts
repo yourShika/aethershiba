@@ -101,7 +101,7 @@ export default {
     const plots = await provider.fetchFreePlots(dc, world, districts);
     const now = Date.now();
     let filtered = plots.filter(
-      p => p.ward > 0 && (p.lottery.phaseUntil === undefined || p.lottery.phaseUntil > now),
+      (p) => p.ward > 0 && (p.lottery.phaseUntil === undefined || p.lottery.phaseUntil > now),
     );
     if (fc !== 'beides') {
       const want = fc === 'ja';

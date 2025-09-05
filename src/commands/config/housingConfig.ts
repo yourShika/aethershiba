@@ -136,7 +136,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
   );
   // Discord limits messages to 5 action rows, so we split the reply
   // into two messages to avoid hitting the limit.
-  const mainMsg = await interaction.reply({
+  await interaction.reply({
     content: summaryContent({
       enabled: Boolean(h.enabled),
       dc,
@@ -150,8 +150,10 @@ async function handle(interaction: ChatInputCommandInteraction) {
     }),
     components: [dcRow, worldRow, distRow, chRow, userRow],
     flags: MessageFlags.Ephemeral,
-    fetchReply: true,
   });
+
+  // Fetch the response after sending the reply
+  const mainMsg = await interaction.fetchReply();
 
   // Remember the message ID so interaction handlers can update the summary.
   setDraft(k, { messageId: mainMsg.id });

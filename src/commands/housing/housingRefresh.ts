@@ -1,5 +1,6 @@
 import { MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { refreshHousing } from '../../functions/housing/housingRefresh.js';
+import { threadManager } from '../../lib/threadManager.js';
 
 export default {
   name: 'refresh',
@@ -10,6 +11,21 @@ export default {
       await interaction.reply({ content: 'This command can only be used in a guild.', flags: MessageFlags.Ephemeral });
       return;
     }
+
+    if (threadManager.isLocked('housing:refresh', { guildId: guildID } )) {
+      await interaction.reply({ content: 'Housing refresh is currently running. Please try again later.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    if (
+      threadManager.isLocked('housing:setup', { guildId: guildID }) ||
+      threadManager.isLocked('housing:reset', { guildId: guildID })
+    ) {
+      await interaction.reply({ content: 'Another housing task is currently running. Please try again later.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const res = await refreshHousing(interaction.client, guildID);
       if (!res) {

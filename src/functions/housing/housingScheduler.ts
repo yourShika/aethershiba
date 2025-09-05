@@ -5,6 +5,8 @@ import { refreshHousing } from './housingRefresh';
 import { logError } from '../../handlers/errorHandler.js';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { threadManager } from '../../lib/threadManager';
+
 
 type S = { last?: number; runs: number; day: string; running: boolean };
 const state = new Map<string, S>();
@@ -66,6 +68,11 @@ export function startHousingScheduler(client: Client) {
                 }
 
                 if (st.running) continue;
+                if (
+                    threadManager.isLocked('housing:refresh', { guildId: guildID }) ||
+                    threadManager.isLocked('housing:setup', { guildId: guildID }) ||
+                    threadManager.isLocked('housing:reset', { guildId: guildID }) 
+                ) continue;
 
                 const minGap = req.data.intervalMinutes * 60 * 1000;
                 const now = Date.now();
