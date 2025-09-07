@@ -1,5 +1,7 @@
 // src/config.ts
-
+// ---------------------------------------------------
+// Bot Config
+// ---------------------------------------------------
 export const botConfig = {
     presence: {
         status: 'online' as const, // 'online' | 'idle' | 'dnd' | 'invisible'
@@ -10,4 +12,10 @@ export const botConfig = {
             },
         ],
     },
+    housing: {
+        MessageWatcherTime: 10_000, // 10 Seconds
+    },
+    debug: {
+        loggingDebug: false,
+    }
 };

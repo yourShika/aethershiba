@@ -1,5 +1,7 @@
-// Entry point for the Discord bot. Sets up the client,
-// loads configuration and registers all slash commands.
+// src/index.ts
+// ---------------------------------------------------
+// Dependecies
+// ---------------------------------------------------
 import 'dotenv/config';
 import { Client, GatewayIntentBits } from 'discord.js';
 import { logger } from './lib/logger.js';
@@ -27,7 +29,9 @@ const client = new Client({
 // Register all commands with the handler so they can be deployed and executed.
 commandHandler.registerAll(commands);
 
-// Set up event listeners.
+// ---------------------------------------------------
+// Listeners
+// ---------------------------------------------------
 registerEvents(client);
 startHousingMessageWatcher(client);
 startHousingScheduler(client);

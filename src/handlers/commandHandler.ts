@@ -1,3 +1,5 @@
+// handlers/commandHandler.ts
+
 import type {
   Client,
   Interaction,
@@ -14,37 +16,40 @@ import type {
 export interface Command {
     /** Builder describing the slash command and its options. */
     data: SlashCommandBuilder;
+
     /** Function executed when the command is invoked. */
     execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
+
     /** Optional handler for autocomplete interactions. */
     autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
+
     /** Optional emoji shown in help listings. */
     emoji?: string;
 }
 
 /**
- * Central command handler responsible for registering commands and
- * dispatching incoming interactions to the correct implementation.
+ * Central command handler responsible for:
+ *  - Registering commands (individually or in bulk).
+ *  - Deploying slash commands to Discord.
+ *  - Handling incoming interactions and routing them to the correct command.
  */
 export class CommandHandler {
+    // Registry of commands by name
     private commands = new Map<string, Command>();
 
-    /**
-     * Registers a command with the handler so it can be executed and deployed.
-     */
+    //Registers a command with the handler so it can be executed and deployed.
     register(command: Command) {
         this.commands.set(command.data.name, command);
     }
 
-    /**
-     * Registers multiple commands at once.
-     */
+    //Registers multiple commands at once.
     registerAll(cmds: Command[]) {
         for (const c of cmds) this.register(c);
     }
 
     /**
      * Deploys all registered slash commands to Discord.
+     * This updates the global application commands.
      */
     async deploy(client: Client) {
         await client.application?.commands.set(
@@ -53,8 +58,10 @@ export class CommandHandler {
     }
 
     /**
-     * Handles an interaction by resolving the responsible command and
-     * executing it. Unknown interactions are ignored.
+     * Handle an interaction from Discord:
+     *  - If it's a slash command, find the command and run its execute() method.
+     *  - If it's an autocomplete event, run its autocomplete() handler (if provided).
+     *  - If no command is found, ignore the interaction
      */
     async handle(interaction: Interaction) {
         if (interaction.isChatInputCommand()) {
@@ -74,6 +81,8 @@ export class CommandHandler {
 
 /**
  * Singleton instance used across the application.
+ * Import this instead of creating new instances,
+ * so commands are registered consistently.
  */
 export const commandHandler = new CommandHandler();
 

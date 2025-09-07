@@ -1,43 +1,73 @@
+// handlers/configHandler.ts
+
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { ConfigSchema, GuildConfig } from './configSchema.js';
 import { logger } from '../lib/logger.js';
 
-// This module manages configuration schemas and provides methods to load, get, and set guild configurations.
-// It supports dynamic schema loading from a specified directory and merges default values with existing configurations.
+// ---------------------------------------------------
+// Configuration Manager
+// ---------------------------------------------------
+// This module manages guild configuration schemas and provides methods
+// to load, get, set, and update guild-specific configuration files.
+//
+// Features:
+//  - Dynamic schema loading from a schema directory.
+//  - Configurations cached in memory for performance.
+//  - Validations against Zod schemas.
+//  - JSON file storage per guild.
+// ---------------------------------------------------
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Helper function to check if a value is an object (not null or array).
-// This is used to ensure we only merge objects and not primitive values or arrays.
+/**
+ * Helper function to check if a value is a plain object.
+ * Ensures we only merge objects (not arrays or primitives). 
+ */
 function isObject(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-// ConfigManager class handles loading, retrieving, and setting guild configurations.
-// It uses a map to cache configurations and a directory to store them as JSON files.
+/**
+ * ConfigManager handles:
+ *  - Loading schema definitions dynamically.
+ *  - Retrieving configs for guilds.
+ *  - Validating configs against schemas.
+ *  - Saving configs to disk as JSON.
+ *  - Providing helpers for enabling/disabling features.
+ */
 export class ConfigManager {
-    private schemas = new Map<string, ConfigSchema<any>>();
-    private cache = new Map<string, GuildConfig>();
-    private configDir: string;
-    private schemaDir: string;
+    private schemas = new Map<string, ConfigSchema<any>>(); // Registered schemas by key
+    private cache = new Map<string, GuildConfig>();         // In-memory cache of configs
+    private configDir: string;                              // Where guild config files are stored
+    private schemaDir: string;                              // Where schema files are stored
 
-    // Constructor initializes the configuration manager with optional directories for config and schema files.
-    // If not provided, it defaults to 'src/guildconfig' for configurations and 'src/lib/config/schemas' for schemas.
-    // This allows for flexibility in where configurations are stored and how schemas are organized.
+
+    /**
+     * @param options optional custom directories
+     *  - configDir: where to store guild configs
+     *  - schemaDir: where to load schema modules from 
+     */
     constructor(options?: { configDir?: string; schemaDir?: string }) {
         this.configDir = options?.configDir || path.join(process.cwd(), 'src', 'guildconfig');
         this.schemaDir = options?.schemaDir || path.join(__dirname, 'schemas');
     }
 
-    // Initializes the ConfigManager by loading all configuration schemas from the specified directory.
-    // This method reads all files in the schema directory, imports them, and registers them in
+    /**
+     * Loads all schemas from schemaDir.
+     * Each schema file must export a 'ConfigSchema' as default or named 'schema'.
+     */
     async loadSchemas() {
         const files = await fs.readdir(this.schemaDir).catch(() => []);
         for (const file of files) {
             if (!file.endsWith('.js') && !file.endsWith('.ts')) continue;
+
+            // Dynamic import of schema file
             const mod = await import(pathToFileURL(path.join(this.schemaDir, file)).href);
             const schema: ConfigSchema<any> = mod.default || mod.schema;
+
+            // when schema and schemaKey are correct -> Load
             if (schema && schema.key) {
                 this.schemas.set(schema.key, schema);
                 logger.info(`Loaded config schema: ${schema.key}`);
@@ -45,24 +75,29 @@ export class ConfigManager {
         }
     }
 
-    // Returns the file path for a specific guild's configuration.
-    // This is used to read and write configuration files for each guild.
+    // Get the filesystem path to the config file for a given guild.
     private fileFor(gid: string) {
         return path.join(this.configDir, `${gid}_config.json`);
     }
 
-    // Ensures the configuration directory exists.
-    // This is called before reading or writing configuration files to prevent errors.
+    // Ensure that the config directory exists (creates it if missing).
     private async ensureDir() {
         await fs.mkdir(this.configDir, { recursive: true });
     }
 
-    // Retrieves the full configuration object for a guild. The result is
-    // cached in memory to avoid repeated disk access.
+    /**
+     * Retrieve the full configuration object for a guild.
+     *  - Loads from cache if present.
+     *  - Falls back to reading the JSON file from disk.
+     *  - If file is missing/corrupt, returns emtpy object.
+     */
     async get(gid: string): Promise<GuildConfig> {
         if (this.cache.has(gid)) return this.cache.get(gid)!; 
+
+        // get Data in the variable
         await this.ensureDir();
         let data: GuildConfig = {};
+        
         try {
             const raw = await fs.readFile(this.fileFor(gid), 'utf-8');
             data = JSON.parse(raw);
@@ -70,21 +105,34 @@ export class ConfigManager {
         } catch (err) {
             logger.warn(`Failed to read config for guild ${gid}: ${err}`);
         }
+
         this.cache.set(gid, data);
         return data;
     }
 
-    // Saves the configuration for a specific guild.
-    // Validates the data against the schema and writes it to a file.
+    /**
+     * Save the configuration for a guild to disk.
+     * Also updates the in-memory cache.
+     * 
+     * @param gid - Discord guildID 
+     * @param data - Config Data
+     */
     private async save(gid: string, data: GuildConfig) {
+        // Get Data and save to the file
         await this.ensureDir();
         await fs.writeFile(this.fileFor(gid), JSON.stringify(data, null, 2), 'utf-8');
         this.cache.set(gid, data);
         logger.info(`Saved config for guild ${gid}`);
     }
     
-    // Sets the value for a specific key in the guild's configuration.
-    // Validation is performed against the registered schema if present.
+    /**
+     * Set or replace a specific config section for a guild.
+     *  - If a schema exists, validates the value with Zod.
+     *  - Otherwise stores raw value.
+     * @param gid - Discord guildID
+     * @param key - Schema Key
+     * @param value - Value to update
+     */
     async set(gid: string, key: string, value: unknown) {
         const config = await this.get(gid);
         const schema = this.schemas.get(key);
@@ -93,8 +141,8 @@ export class ConfigManager {
     }
 
     /**
-     * Retrieves a specific configuration section for the guild. The result is
-     * typed based on the caller's expectations.
+     * Retrieves a specific configuration section for the guild.
+     * Returns typed value or undefined if not set.
      */
     async getKey<T>(gid: string, key: string): Promise<T | undefined> {
         const cfg = await this.get(gid);
@@ -102,9 +150,9 @@ export class ConfigManager {
     }
 
     /**
-     * Merges a partial configuration into the existing entry for the given key.
-     * Only shallow merging is performed, which is sufficient for the current
-     * configuration shape.
+     * Update (merge) part of a configuration section.
+     *  - Performs shallow merge only.
+     *  - Validated again on save.
      */
     async update(gid: string, key: string, patch: Record<string, unknown>) {
         const current = (await this.getKey<Record<string, unknown>>(gid, key)) ?? {};
@@ -112,8 +160,11 @@ export class ConfigManager {
         await this.set(gid, key, next);
     }
 
-    // Gets the value for a specific key in the guild's configuration.
-    // If the key is not found, it returns the default value from the schema.
+    /**
+     * Enable a feature by setting 'enabled = true' in its config section.
+     * @param gid - Discord guildID
+     * @param key - Schema key
+     */
     async enable(gid: string, key: string) {
         const config = await this.get(gid);
         const current = (config[key] as Record<string, unknown>) ?? {};
@@ -121,8 +172,12 @@ export class ConfigManager {
         await this.set(gid, key, current);
     }
 
-    // Disables a specific feature in the guild's configuration by setting 'enabled' to false.
-    // This is useful for toggling features without removing their configuration.
+    /**
+     * Disable a feature by setting 'enabled = false' in its config section.
+     * Keeps the config intact but disables functionality.
+     * @param gid - Discord guildID
+     * @param key - Schema Key
+     */
     async disable(gid: string, key: string) {
         const config = await this.get(gid);
         const current = (config[key] as Record<string, unknown>) ?? {};
@@ -132,6 +187,11 @@ export class ConfigManager {
 
 }
 
-// Export an instance of ConfigManager for use in other parts of the application.
-// This allows for a singleton pattern where the same instance is used throughout the application.
+// ---------------------------------------------------
+// Singleton Export
+// ---------------------------------------------------
+// A single instance is exported so that configuration
+// is managed consistently across the whole application.
+// ---------------------------------------------------
+
 export const configManager = new ConfigManager();
