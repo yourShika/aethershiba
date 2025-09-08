@@ -1,3 +1,8 @@
+// commands/housing/housingSetup.ts
+
+// ---------------------------------------------------
+// Dependencies
+// ---------------------------------------------------
 import {
   ChannelType,
   MessageFlags,
@@ -14,12 +19,15 @@ import type { Plot } from '../../functions/housing/housingProvider.paissa.js';
 import { threadManager } from '../../lib/threadManager.js';
 import { logger } from '../../lib/logger.js';
 
+// PaissaDB API 
 const provider = new PaissaProvider();
 
+// Build a stable key for a plot, used to de-duplicate/store messages.
 function plotKey(p: Plot): string {
   return [p.dataCenter, p.world, p.district, p.ward, p.plot].join(':');
 }
 
+// Hash only the content that affects the embed; used to detect edits.
 function plotHash(p: Plot): string {
   const stable = {
     dataCenter: p.dataCenter,
@@ -37,17 +45,32 @@ function plotHash(p: Plot): string {
   return JSON.stringify(stable);
 }
 
+// ---------------------------------------------------
+// /housing Setup - Command
+// ---------------------------------------------------
 export default {
   name: 'setup',
   description: 'Post a list of free housing plots grouped by district',
 
+  /**
+   * Slash command entrypoint:
+   *  - Validates config (housingStart)
+   *  - Fetches free plots per configured world/district
+   *  - Posts them into a forum, grouped by `${world} - ${district}`
+   *  - Persists thread+message mapping in housing_messages.json
+   * @param interaction - Discord Chat Input Command Interaction
+   * @returns Messages on the ForumChannel 
+   */
   async execute(interaction: ChatInputCommandInteraction) {
+
+    // Make sure the command is only useable in a guild.
     const guildID = interaction.guildId;
     if (!guildID) {
       await interaction.reply({ content: 'This command can only be used in a guild.', flags: MessageFlags.Ephemeral });
       return;
     }
 
+    // Prevent concurrent housing tasks in the same guild (setup/refresh/reset)
     if (
       threadManager.isLocked('housing:setup', { guildId: guildID }) ||
       threadManager.isLocked('housing:refresh', { guildId: guildID }) ||
@@ -60,6 +83,7 @@ export default {
       return;
     }
 
+    // Load and validate minimal config required to post once
     const config = await configManager.get(guildID);
     const h = (config['housing'] as any) ?? null;
     const ok = HousingStart.safeParse(h);
@@ -71,6 +95,7 @@ export default {
 
     const hc = ok.data;
 
+    // Resolve target channel; must be a forum
     const ch = await interaction.client.channels.fetch(hc.channelId).catch(() => null);
     if (!ch || ch.type !== ChannelType.GuildForum) {
       await interaction.reply({ 
@@ -80,6 +105,7 @@ export default {
       return;
     }
 
+    // Load existing state to detect if we already have messages recorded
     const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
     let store: Record<string, { channelId: string, threads: Record<string, string>; messages: Record<string, unknown> }> = {};
     try {
