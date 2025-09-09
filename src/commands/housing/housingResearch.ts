@@ -1,3 +1,5 @@
+// commands/housing/housingResearch.ts
+
 import {
   MessageFlags,
   SlashCommandSubcommandBuilder,
@@ -9,8 +11,16 @@ import { getWorldNamesByDC } from '../../functions/housing/housingWorlds.js';
 import { PaissaProvider } from '../../functions/housing/housingProvider.paissa.js';
 import { plotEmbed } from './embed.js';
 
+// PaissaDB API Provider
 const provider = new PaissaProvider();
 
+/**
+ * Split a comma-seperated string into a list of unique, trimmed values.
+ * Case-insensitive uniqueness is enforced; original casing is normalized to lower.
+ * 
+ * @param input - Values
+ * @returns Values splitted with Comma "value, value, etc."
+ */
 function splitCommalist(input: string): string[] {
   const seen = new Set<string>();
   for (const raw of input.split(',')) {
@@ -22,6 +32,15 @@ function splitCommalist(input: string): string[] {
   return Array.from(seen).map(k => k);
 }
 
+/**
+ * Build autocomplete options for a comma-augmented input field.
+ * Preserves already-typed items and suggests the last (currently edited) token.
+ * 
+ * @param currentValue - Current Value tipped
+ * @param allOptions - Show all Options
+ * @param limit - Limit always to 25 
+ * @returns All available Options for the choice.
+ */
 function buildAutocompleteChoices(
   currentValue: string,
   allOptions: string[],
@@ -30,19 +49,39 @@ function buildAutocompleteChoices(
   const parts = currentValue.split(',');
   const lastRaw = parts.pop() ?? '';
   const last = lastRaw.trim();
+  
+  // Already selected items (case-insensitive de-dupe)
   const alreadyRaw = parts.map(s => s.trim()).filter(Boolean);
   const already = Array.from(new Set(alreadyRaw.map(a => a.toLowerCase())));
+
+  // Filter out already selected, then match prefix for the last token
   const choices = allOptions
     .filter(opt => !already.includes(opt.toLowerCase()))
     .filter(opt => opt.toLowerCase().startsWith(last.toLowerCase()))
     .slice(0, limit);
+
+  // Compose the value so selecting an option appends it to the CSV
   const prefix = alreadyRaw.length ? alreadyRaw.join(', ') + (lastRaw.length ? ', ' : ', ') : '';
   return choices.map(opt => ({ name: opt, value: prefix + opt }));
 }
 
+// ---------------------------------------------------
+// /housing research
+// ---------------------------------------------------
 export default {
   name: 'research',
   description: 'Search for available housing plots and DM the result',
+
+  /**
+   * Define the /housing research subcommand schema.
+   *  - datacenter: required, from fixed list.
+   *  - world: required, autocompleted per selected DC
+   *  - districts: optional CSV, autocompleted from known districts
+   *  - fc: filter for Free Company-only availability
+   *  - size: plot size filter
+   * 
+   * @param sc - Discord Slash Command Subcommand Builder
+   */
   build(sc: SlashCommandSubcommandBuilder) {
     sc
       .addStringOption(opt =>

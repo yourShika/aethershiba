@@ -114,6 +114,8 @@ export default {
     } catch {
       store = {};
     }
+
+    // If we already have stored messages for this guild, avoid double-posting
     const rec = store[guildID];
     if (rec && Object.keys(rec.messages).length > 0) {
       await interaction.reply({
@@ -123,25 +125,37 @@ export default {
       return;
     }
     
+    // Acknowledge command (ephemeral) while we work
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
+    // Run under a lock to ensure exclusive setup per guild
     await threadManager.run(
       'housing:setup',
       async () => {
+        // ---------------------------------------------------
+        // Fetch/Filter available plots
+        // ---------------------------------------------------
         const plots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
         const now = Date.now();
+
+        // Fetch all plots
         for (const world of hc.worlds) {
           const p = await provider
             .fetchFreePlots(hc.dataCenter, world, hc.districts)
+            // Filter invalid or expired lottery entries.
             .then(list => list.filter(pl => pl.ward > 0 && !(pl.lottery?.phaseUntil && pl.lottery.phaseUntil <= now)));
           plots.push(...p);
         }
 
+      // When no plots were found.
       if (plots.length === 0) {
         await interaction.editReply({ content: 'No free plots available.' });
         return;
       }
 
+      // ---------------------------------------------------
+      // Group by thread name: `${world} - ${district}`
+      // ---------------------------------------------------
       const byThread = new Map<string, typeof plots>();
       for (const p of plots) {
         const name = `${p.world} - ${p.district}`;
@@ -150,6 +164,7 @@ export default {
         byThread.set(name, arr);
       }
 
+      // Optional mention string from config
       const mention = [
         hc.pingUserId ? `<@${hc.pingUserId}>` : null,
         hc.pingRoleId ? `<@&${hc.pingRoleId}>` : null,
@@ -157,6 +172,9 @@ export default {
         .filter(Boolean)
         .join(' ');
 
+      // ---------------------------------------------------
+      // Load/Update persistent message map for this guild
+      // ---------------------------------------------------
       let st: Record<string, { 
         channelId: string; 
         threads: Record<string, string>; 
@@ -173,8 +191,12 @@ export default {
       rec.channelId = hc.channelId;
       st[guildID] = rec;
 
+      // ---------------------------------------------------
+      // Create threads (as needed) and post plot messages
+      // ---------------------------------------------------
       let total = 0;
       for (const [threadName, list] of byThread) {
+        // Reuse previously recorded thread if we have one
         let threadId = rec.threads[threadName];
         let thread: ForumChannel | any = threadId
           ? await interaction.client.channels.fetch(threadId).catch(() => null)
@@ -182,14 +204,19 @@ export default {
 
         for (const p of list) {
           const key = plotKey(p);
+          // If we arleady recorded this plot, skip
           if (rec.messages[key]) continue;
 
+          // Create a new forum thread with the first plot as starter
             if (!thread) {
               const { embed, attachment } = plotEmbed(p);
               const msg: any = { embeds: [embed], files: attachment ? [attachment] : [] };
               if (mention) msg.content = mention;
+
               thread = await (ch as ForumChannel).threads.create({ name: threadName, message: msg });
               rec.threads[threadName] = thread.id;
+
+              // Record starter message
               const starter = await thread.fetchStarterMessage();
               rec.messages[key] = {
                 threadId: thread.id,
@@ -198,9 +225,11 @@ export default {
                 ...(p.lottery?.phaseUntil ? { deleteAt: p.lottery.phaseUntil } : {}),
               };
             } else {
+              // Post additional plots into existing thread
               const { embed, attachment } = plotEmbed(p);
               const m: any = { embeds: [embed], files: attachment ? [attachment] : [] };
               if (mention) m.content = mention;
+
               const sent = await thread.send(m);
               rec.messages[key] = {
                 threadId: thread.id,
@@ -213,14 +242,21 @@ export default {
         }
       }
 
+      // ---------------------------------------------------
+      // Persist updated message map
+      // ---------------------------------------------------
       try {
         await writeFile(filePath, JSON.stringify(st, null, 2), 'utf8');
       } catch (err) {
         logger.error(`[🏠Housing][${guildID}] Fehler beim Schreiben von ${filePath}: ${String(err)}`);
       }
 
-        await interaction.editReply({ content: `Posted ${total} plots across ${byThread.size} threads to <#${hc.channelId}>` });
+      // Final ephemeral confirmation to the invoker
+      await interaction.editReply({ 
+          content: `Posted ${total} plots across ${byThread.size} threads to <#${hc.channelId}>` 
+        });
       },
+      // Concurrency scope and conflicts for setup
       { guildId: guildID, blockWith: ['housing:refresh', 'housing:reset'] }
     );
   },
