@@ -1,3 +1,5 @@
+// comamnds/config/housingConfig.ts
+
 import { ActionRowBuilder,
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
@@ -17,33 +19,50 @@ import { getWorldNamesByDC } from "../../functions/housing/housingWorlds";
 import { uiKey, setDraft } from "../../ui/housingUI";
 import { logError } from "../../handlers/errorHandler.js";
 
+// Prefix used to namespace customID values for all housing config UI components.
+// This makes routing component interactions straightforward.
 const PREFIX = "housing:";
 
+/**
+ * Main executor for the "config housing" subcommand.
+ * Builds to ephemeral messages (to respect Discord's max 5 rows per message)
+ * with select menus und buttons, initializes a per-user draft from current config,
+ * and persists changes as users interact.
+ * 
+ * @param interaction - Discord Chat Input Command Interaction
+ */
 async function handle(interaction: ChatInputCommandInteraction) {
     try {
-    const guildID = interaction.guildId!;
-    const config = await configManager.get(guildID);
-    const h = (config['housing'] as any) ?? {};
 
-    const dc = String(h.dataCenter ?? 'Light');
-    const worldNames = await getWorldNamesByDC(dc);
-    const worlds = Array.isArray(h.worlds)
-        ? h.worlds.filter((w: string) => worldNames.includes(w))
-        : h.world ? [h.world].filter((w: string) => worldNames.includes(w)) : [];
+      // Load and normalize current guild config
+      const guildID = interaction.guildId!;
+      const config = await configManager.get(guildID);
+      const h = (config['housing'] as any) ?? {};
 
-    const k = uiKey(guildID, interaction.user.id);
-    setDraft(k, {
-        enabled: Boolean(h.enabled),
-        dataCenter: dc,
-        worlds,
-        districts: h.districts ?? [],
-        channelId: h.channelId,
-        timesPerDay: h.timesPerDay,
-        pingUserId: h.pingUserId,
-        pingRoleId: h.pingRoleId,
-    });
+      // Ensure we always have a datacenter; "Light" is the default.
+      const dc = String(h.dataCenter ?? 'Light');
 
-    // Datacenter select
+      // Fetch worlds for the selected DC and filter any stale values present in config.
+      const worldNames = await getWorldNamesByDC(dc);
+      const worlds = Array.isArray(h.worlds)
+          ? h.worlds.filter((w: string) => worldNames.includes(w))
+          : h.world ? [h.world].filter((w: string) => worldNames.includes(w)) : [];
+
+      // Initialize/merge the per-user draft for this guild
+      // Keyed by (guildId:userId) so concurrent admins don't clash.
+      const k = uiKey(guildID, interaction.user.id);
+      setDraft(k, {
+          enabled: Boolean(h.enabled),
+          dataCenter: dc,
+          worlds,
+          districts: h.districts ?? [],
+          channelId: h.channelId,
+          timesPerDay: h.timesPerDay,
+          pingUserId: h.pingUserId,
+          pingRoleId: h.pingRoleId,
+      });
+
+    // Datacenter select (single)
     const dcRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId(PREFIX + "dc")
@@ -53,7 +72,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
             new StringSelectMenuOptionBuilder()
               .setLabel(d)
               .setValue(d)
-              .setDefault(d === dc)              // ⬅️ statt setDefaultValues
+              .setDefault(d === dc)   // Mark current DC as selected
           ),
         )
         .setMinValues(1)
@@ -70,7 +89,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
             new StringSelectMenuOptionBuilder()
               .setLabel(w)
               .setValue(w)
-              .setDefault(worlds.includes(w))
+              .setDefault(worlds.includes(w))   // Preserve current selections
           ),
         )
         .setMinValues(1)
@@ -87,24 +106,24 @@ async function handle(interaction: ChatInputCommandInteraction) {
             new StringSelectMenuOptionBuilder()
               .setLabel(opt.label)
               .setValue(opt.value)
-              .setDefault((h.districts ?? []).includes(opt.value))   // ⬅️ defaults setzen
+              .setDefault((h.districts ?? []).includes(opt.value))   // Preselect existing districts
           ),
         )
         .setMinValues(1)
         .setMaxValues(Math.min(5, DISTRICT_OPTIONS.length)),
     );
 
-  // Channel picker
+  // Target channel selector (forum)
   const chBuilder = new ChannelSelectMenuBuilder()
     .setCustomId(PREFIX + "channel")
     .setPlaceholder("Zielkanal")
-    .addChannelTypes(ChannelType.GuildText, ChannelType.GuildForum)
+    .addChannelTypes(ChannelType.GuildForum)
     .setMinValues(0)
     .setMaxValues(1);
   if (h.channelId) chBuilder.setDefaultChannels(h.channelId);
   const chRow = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(chBuilder);
 
-  // User mention picker
+  // Optional ping user selector
   const userBuilder = new UserSelectMenuBuilder()
     .setCustomId(PREFIX + "pinguser")
     .setPlaceholder("Ping User")
@@ -113,7 +132,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
   if (h.pingUserId) userBuilder.setDefaultUsers(h.pingUserId);
   const userRow = new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(userBuilder);
 
-  // Role mention picker
+  // Optional ping role selector (rendered in a follow-up due to row limits)
   const roleBuilder = new RoleSelectMenuBuilder()
     .setCustomId(PREFIX + "pingrole")
     .setPlaceholder("Ping Role")
@@ -122,7 +141,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
   if (h.pingRoleId) roleBuilder.setDefaultRoles(h.pingRoleId);
   const roleRow = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(roleBuilder);
 
-  // Buttons
+  // Control buttons: enable/disable + open scheduler
   const btnRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(PREFIX + "toggle")
@@ -133,8 +152,8 @@ async function handle(interaction: ChatInputCommandInteraction) {
       .setLabel("Schedule…")
       .setStyle(ButtonStyle.Secondary),
   );
-  // Discord limits messages to 5 action rows, so we split the reply
-  // into two messages to avoid hitting the limit.
+
+  // First message: summary + first five rows
   await interaction.reply({
     content: summaryContent({
       enabled: Boolean(h.enabled),
@@ -150,10 +169,11 @@ async function handle(interaction: ChatInputCommandInteraction) {
     flags: MessageFlags.Ephemeral,
   });
 
-  // Fetch the response after sending the reply
+  // After sending, fetch the reply so we can store the message ID in the draft.
+  // This allows other interaction handlers to update the summary later.
   const mainMsg = await interaction.fetchReply();
 
-  // Remember the message ID so interaction handlers can update the summary.
+  // Second message: remaining selectors + action buttons
   setDraft(k, { messageId: mainMsg.id });
 
   await interaction.followUp({
@@ -162,6 +182,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
     flags: MessageFlags.Ephemeral,
   });
     } catch (err) {
+      // Log and inform the user if anything goes wrong while building the UI.
         logError('housing config handle', err);
         if (interaction.isRepliable()) {
             await interaction.reply({ content: 'Fehler beim Laden der Konfiguration.', flags: MessageFlags.Ephemeral });
@@ -169,6 +190,13 @@ async function handle(interaction: ChatInputCommandInteraction) {
     }
 }
 
+/**
+ * Renders the summary text block shown above the controls.
+ * Keeps the user oriented and mirrors the currently selected values.
+ * 
+ * @param s - Summary
+ * @returns - Formatted Summary
+ */
 export function summaryContent(s: {
   enabled: boolean;
   dc: string;
@@ -190,12 +218,15 @@ export function summaryContent(s: {
 - Ping Role: ${s.pingRoleId ? `<@&${s.pingRoleId}>` : "—"}`;
 }
 
+// Subcommand registration object consumed by the config command.
 const subcmd: ConfigSubcommand = {
   name: "housing",
   description: "Housing-Überwachung konfigurieren",
   execute: handle,
 };
 
+
 export default subcmd;
+// Export the prefix so the interaction router can macht component customIds.
 export const HOUSING_PREFIX = PREFIX; // exported for the interaction router
 
