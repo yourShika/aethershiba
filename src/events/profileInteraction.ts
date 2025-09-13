@@ -14,12 +14,14 @@ import {
     TextInputStyle,
     ButtonBuilder,
     ButtonStyle,
+    Message,
 } from "discord.js";
 import {
     generateToken,
     verifyToken,
     clearToken,
     extractLodestoneId,
+    getToken,
 } from '../functions/profile/profileLodestoneVerification';
 import {
     addProfile,
@@ -29,6 +31,8 @@ import {
 
 import { PROFILE_PREFIX } from "../const/constatns";
 import { tokenEmbed, successEmbed } from "../embeds/profileEmbeds";
+
+const linkMessages = new Map<string, Message>();
 
 export function register(client: Client) {
     client.on(Events.InteractionCreate, async (interaction) => {
@@ -45,6 +49,7 @@ export function register(client: Client) {
             // Cancel
             if (id === `${PROFILE_PREFIX}link:cancel`) {
                 clearToken(interaction.user.id);
+                linkMessages.delete(interaction.user.id);
                 await interaction.update({
                     content: 'Verification cancelled.',
                     embeds: [],
@@ -55,6 +60,7 @@ export function register(client: Client) {
 
             // Start
             if (id === `${PROFILE_PREFIX}link:start`) {
+                linkMessages.set(interaction.user.id, interaction.message);
                 const modal = new ModalBuilder()
                     .setCustomId(`${PROFILE_PREFIX}link:submit`)
                     .setTitle('Enter Lodestone URL');
@@ -77,10 +83,10 @@ export function register(client: Client) {
                 const data = await verifyToken(interaction.user.id);
 
                 if (!data) {
+                    const token = getToken(interaction.user.id);
                     await interaction.update({
                         content: 'Verification failed. Ensure the token is in your Lodestone comment.',
-                        embeds: [],
-                        components: [],
+                        embeds: token ? [tokenEmbed(token, 'Verification failed')] : [],
                     });
                     return;
                 }
@@ -161,6 +167,19 @@ export function register(client: Client) {
                         .setLabel('Cancel')
                         .setStyle(ButtonStyle.Secondary)
                 );
+                
+                const msg = linkMessages.get(interaction.user.id);
+                if (msg) {
+                    try {
+                        await msg.edit({ embeds: [tokenEmbed(token)], components: [row] });
+                        linkMessages.delete(interaction.user.id);
+                        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                        await interaction.deleteReply().catch(() => {});
+                        return;
+                    } catch {
+                        // fall through and send a fresh reply below
+                    }
+                } 
 
                 await interaction.reply({
                     embeds: [tokenEmbed(token)],
