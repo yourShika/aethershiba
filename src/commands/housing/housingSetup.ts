@@ -12,7 +12,7 @@ import {
 import { configManager } from '../../handlers/configHandler.js';
 import { HousingStart } from '../../schemas/housing.js';
 import { PaissaProvider } from '../../functions/housing/housingProvider.paissa.js';
-import { plotEmbed } from './embed.js';
+import { plotEmbed } from '../../embeds/housingEmbeds.js';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Plot } from '../../functions/housing/housingProvider.paissa.js';

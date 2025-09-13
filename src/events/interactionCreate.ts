@@ -3,7 +3,8 @@
 import { Events, Client, MessageFlags } from 'discord.js';
 import { logger } from '../lib/logger.js';
 import { commandHandler } from '../handlers/commandHandler.js';
-import { HOUSING_PREFIX } from '../commands/config/housingConfig.js';
+import { HOUSING_PREFIX } from '../const/constatns.js';
+import { PROFILE_PREFIX } from '../const/constatns.js';
 
 /**
  * Register the "interactionCreate" event handler.
@@ -39,6 +40,10 @@ export function register(client: Client) {
             ) {
                 // Ignore housing-specific UI elements (custom handlers elsewhere)
                 if (interaction.customId?.startsWith(HOUSING_PREFIX)) {
+                    return;
+                }
+
+                if (interaction.customId?.startsWith(PROFILE_PREFIX)) {
                     return;
                 }
 

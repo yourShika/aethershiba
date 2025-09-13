@@ -6,10 +6,10 @@ import {
   type ChatInputCommandInteraction,
   type AutocompleteInteraction,
 } from 'discord.js';
-import { DATACENTERS, DISTRICT_OPTIONS } from '../../const/housing/housing.js';
+import { DATACENTERS, DISTRICT_OPTIONS } from '../../const/housing.js';
 import { getWorldNamesByDC } from '../../functions/housing/housingWorlds.js';
 import { PaissaProvider } from '../../functions/housing/housingProvider.paissa.js';
-import { plotEmbed } from './embed.js';
+import { plotEmbed } from '../../embeds/housingEmbeds.js';
 
 // PaissaDB API Provider
 const provider = new PaissaProvider();

@@ -1,8 +1,8 @@
 // commands/housing/embed.ts
 import { AttachmentBuilder, EmbedBuilder } from 'discord.js';
 import { fileURLToPath } from 'node:url';
-import type { Plot } from '../../functions/housing/housingProvider.paissa';
-import { DISTRICT_IMAGES } from '../../const/housing/housing';
+import type { Plot } from '../functions/housing/housingProvider.paissa';
+import { DISTRICT_IMAGES } from '../const/housing';
 
 /**
  * Builds an embed describing a housing plot.

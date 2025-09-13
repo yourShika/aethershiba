@@ -2,9 +2,10 @@
 
 import type { Client } from 'discord.js';
 import * as ready from './ready.js';
-import * as housingInteraction from './housing/housingInteraction.js';
 import * as interactionCreate from './interactionCreate.js';
 
+import * as profileInteraction from './profileInteraction.js';
+import * as housingInteraction from './housingInteraction.js';
 /**
  * Register all event handlers for the bot.
  *
@@ -25,6 +26,9 @@ export function registerEvents(client: Client) {
 
     // Handles housing-specific UI interactions (customId starting with HOUSING_PREFIX)
     housingInteraction.register(client);
+
+    // Handles profile-specific UI interactions (customId starting with PROFILE_PREFIX)
+    profileInteraction.register(client);
     
     // Handles all other interactions: slash commands, autocomplete, unhandled UI components
     interactionCreate.register(client);

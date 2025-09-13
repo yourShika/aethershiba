@@ -5,7 +5,7 @@ import { ChannelType } from 'discord.js';
 import { configManager } from '../../handlers/configHandler';
 import { HousingRequired } from '../../schemas/housing';
 import { PaissaProvider } from './housingProvider.paissa';
-import { plotEmbed } from '../../commands/housing/embed';
+import { plotEmbed } from '../../embeds/housingEmbeds.js';
 import * as seen from './housingSaveConfig';
 import { logError } from '../../handlers/errorHandler.js';
 

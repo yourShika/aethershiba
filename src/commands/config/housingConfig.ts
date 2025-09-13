@@ -14,14 +14,14 @@ import { ActionRowBuilder,
  } from "discord.js";
 import type { ConfigSubcommand } from "./config";
 import { configManager } from "../../handlers/configHandler";
-import { DATACENTERS, DISTRICT_OPTIONS } from "../../const/housing/housing";
+import { DATACENTERS, DISTRICT_OPTIONS } from "../../const/housing";
 import { getWorldNamesByDC } from "../../functions/housing/housingWorlds";
 import { uiKey, setDraft } from "../../ui/housingUI";
 import { logError } from "../../handlers/errorHandler.js";
+import { HOUSING_PREFIX } from "../../const/constatns";
 
 // Prefix used to namespace customID values for all housing config UI components.
 // This makes routing component interactions straightforward.
-const PREFIX = "housing:";
 
 /**
  * Main executor for the "config housing" subcommand.
@@ -65,7 +65,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
     // Datacenter select (single)
     const dcRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
-        .setCustomId(PREFIX + "dc")
+        .setCustomId(HOUSING_PREFIX + "dc")
         .setPlaceholder("Datacenter")
         .addOptions(
           DATACENTERS.map(d =>
@@ -82,7 +82,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
     // World multi-select (depends on DC)
     const worldRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
-        .setCustomId(PREFIX + "world")
+        .setCustomId(HOUSING_PREFIX + "world")
         .setPlaceholder("Worlds")
         .addOptions(
           worldNames.slice(0, 25).map(w =>
@@ -99,7 +99,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
     // District multi-select
     const distRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
-        .setCustomId(PREFIX + "districts")
+        .setCustomId(HOUSING_PREFIX + "districts")
         .setPlaceholder("Districts (mehrfach)")
         .addOptions(
           DISTRICT_OPTIONS.map(opt =>
@@ -115,7 +115,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
 
   // Target channel selector (forum)
   const chBuilder = new ChannelSelectMenuBuilder()
-    .setCustomId(PREFIX + "channel")
+    .setCustomId(HOUSING_PREFIX + "channel")
     .setPlaceholder("Zielkanal")
     .addChannelTypes(ChannelType.GuildForum)
     .setMinValues(0)
@@ -125,7 +125,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
 
   // Optional ping user selector
   const userBuilder = new UserSelectMenuBuilder()
-    .setCustomId(PREFIX + "pinguser")
+    .setCustomId(HOUSING_PREFIX + "pinguser")
     .setPlaceholder("Ping User")
     .setMinValues(0)
     .setMaxValues(1);
@@ -134,7 +134,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
 
   // Optional ping role selector (rendered in a follow-up due to row limits)
   const roleBuilder = new RoleSelectMenuBuilder()
-    .setCustomId(PREFIX + "pingrole")
+    .setCustomId(HOUSING_PREFIX + "pingrole")
     .setPlaceholder("Ping Role")
     .setMinValues(0)
     .setMaxValues(1);
@@ -144,11 +144,11 @@ async function handle(interaction: ChatInputCommandInteraction) {
   // Control buttons: enable/disable + open scheduler
   const btnRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(PREFIX + "toggle")
+      .setCustomId(HOUSING_PREFIX + "toggle")
       .setLabel(h.enabled ? "Disable" : "Enable")
       .setStyle(h.enabled ? ButtonStyle.Danger : ButtonStyle.Success),
     new ButtonBuilder()
-      .setCustomId(PREFIX + "schedule")
+      .setCustomId(HOUSING_PREFIX + "schedule")
       .setLabel("Schedule…")
       .setStyle(ButtonStyle.Secondary),
   );
@@ -227,6 +227,4 @@ const subcmd: ConfigSubcommand = {
 
 
 export default subcmd;
-// Export the prefix so the interaction router can macht component customIds.
-export const HOUSING_PREFIX = PREFIX; // exported for the interaction router
 

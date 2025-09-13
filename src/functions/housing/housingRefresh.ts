@@ -8,7 +8,7 @@ import { logger } from '../../lib/logger.js';
 import { configManager } from '../../handlers/configHandler.js';
 import { HousingRequired } from '../../schemas/housing.js';
 import { PaissaProvider, type Plot } from './housingProvider.paissa.js';
-import { plotEmbed } from '../../commands/housing/embed.js';
+import { plotEmbed } from '../../embeds/housingEmbeds.js';
 import { threadManager } from '../../lib/threadManager.js';
 
 // ---------------------------------------------------
