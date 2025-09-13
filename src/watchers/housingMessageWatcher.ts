@@ -185,7 +185,7 @@ export function startHousingMessageWatcher(client: Client) {
     } finally {
       const dur = Date.now() - startedAt;
       // Debug log for timing and set Tick to false as it finished
-      logger.info(`Watcher-Tick beendet (Dauer ${dur}ms, geprüft=${checked}, entfernt=${removed}, geändert=${changed})`);
+      logger.debug(`Watcher-Tick beendet (Dauer ${dur}ms, geprüft=${checked}, entfernt=${removed}, geändert=${changed})`);
       isTickRunning = false;
     }
   }, intervalMs);

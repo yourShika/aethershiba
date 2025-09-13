@@ -1,3 +1,9 @@
+// commands/profile/profile.ts
+
+// -------------------------------------------------
+// Dependecies
+// -------------------------------------------------
+
 import {
     SlashCommandBuilder,
     MessageFlags,
