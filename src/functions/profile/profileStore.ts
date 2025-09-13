@@ -6,7 +6,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-const DIR = join(process.cwd(), 'json');
+const DIR = join(process.cwd(), 'src', 'json');
 const FILE = join(DIR, 'profiles.json');
 
 export interface Profile {

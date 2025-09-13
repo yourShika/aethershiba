@@ -85,7 +85,6 @@ export function register(client: Client) {
                 if (!data) {
                     const token = getToken(interaction.user.id);
                     await interaction.update({
-                        content: 'Verification failed. Ensure the token is in your Lodestone comment.',
                         embeds: token ? [tokenEmbed(token, 'Verification failed')] : [],
                     });
                     return;
