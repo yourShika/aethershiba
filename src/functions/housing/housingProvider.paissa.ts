@@ -143,6 +143,7 @@ export class PaissaProvider {
     const wanted = new Set(districts);
 
     const out: Plot[] = [];
+    const now = Date.now();
 
     // Iterate distrcits
     for (const d of detail.districts) {
@@ -182,12 +183,16 @@ export class PaissaProvider {
             // FC-only flag
             if (typeof p.free_company_only === 'boolean') item.fcOnly = p.free_company_only;
 
-            // Last update time (seconds -> ms)
-            if (p.last_updated_time !== undefined) item.lastUpdated = Number(p.last_updated_time) * 1000;
+              // Last update time (seconds -> ms)
+              if (p.last_updated_time !== undefined) item.lastUpdated = Number(p.last_updated_time) * 1000;
 
-            out.push(item);
+              // Skip ward 0 or expired lottery entries
+              if (item.ward <= 0) continue;
+              if (item.lottery?.phaseUntil && item.lottery.phaseUntil <= now) continue;
+
+              out.push(item);
+          }
         }
-      }
-      return out;
+        return out;
     }
   }
