@@ -3,6 +3,7 @@
 import { MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { refreshHousing } from '../../functions/housing/housingRefresh.js';
 import { threadManager } from '../../lib/threadManager.js';
+import { ANOTHER_HOUSING_TASK_RUNNING, GUILD_ONLY, HOUSING_REFRESH_RUNNING, RUN_SETUP_FIRST } from '../../const/messages.js';
 
 export default {
   name: 'refresh',
@@ -24,13 +25,13 @@ export default {
 
     // This command only makes sense in a guild context.
     if (!guildID) {
-      await interaction.reply({ content: 'This command can only be used in a guild.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: `${GUILD_ONLY}`, flags: MessageFlags.Ephemeral });
       return;
     }
 
     // Do not start when a refresh is already running
     if (threadManager.isLocked('housing:refresh', { guildId: guildID } )) {
-      await interaction.reply({ content: 'Housing refresh is currently running. Please try again later.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: `${HOUSING_REFRESH_RUNNING}`, flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -39,7 +40,7 @@ export default {
       threadManager.isLocked('housing:setup', { guildId: guildID }) ||
       threadManager.isLocked('housing:reset', { guildId: guildID })
     ) {
-      await interaction.reply({ content: 'Another housing task is currently running. Please try again later.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: `${ANOTHER_HOUSING_TASK_RUNNING}`, flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -49,7 +50,7 @@ export default {
       // Execute refresh; it returns null if the store is empty (no setup yet)
       const res = await refreshHousing(interaction.client, guildID);
       if (!res) {
-        await interaction.editReply({ content: 'No housing messages found. Run /housing setup first.' });
+        await interaction.editReply({ content: `${RUN_SETUP_FIRST}` });
         return;
       }
 

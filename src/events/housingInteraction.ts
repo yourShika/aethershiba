@@ -19,7 +19,8 @@ import { uiKey, setDraft, getDraft } from '../ui/housingUI.js';
 import { configManager } from '../handlers/configHandler.js';
 import { logger } from '../lib/logger.js';
 import { getWorldNamesByDC } from '../functions/housing/housingWorlds.js';
-import { HOUSING_PREFIX } from '../const/constatns.js';
+import { HOUSING_PREFIX } from '../const/constants.js';
+import { ERROR_OCCURED, UNKOWN_ACTION } from '../const/messages.js';
 
 /**
  * Send a short-lived (ephemeral) follow-up and remove if after 5 seconds.
@@ -387,7 +388,7 @@ export function register(client: Client) {
 
                     if (interaction.isRepliable()) {
                         await interaction.reply({
-                            content: 'Diese Aktion ist derzeit nicht verfügbar.',
+                            content: `${UNKOWN_ACTION}`,
                             flags: MessageFlags.Ephemeral,
                         });
                     }
@@ -398,7 +399,7 @@ export function register(client: Client) {
             // Catch-all to avoid crashin the event loop; always respond ephemerally if possible.
             logger.error('❌ Fehler in housing interaction:', err);
             if (interaction.isRepliable()) {
-                const reply = { content: 'Es ist ein Fehler aufgetreten.', flags: MessageFlags.Ephemeral } as const;
+                const reply = { content: `${ERROR_OCCURED}`, flags: MessageFlags.Ephemeral } as const;
                 if (interaction.deferred || interaction.replied) {
                     await interaction.followUp(reply);
                 } else {

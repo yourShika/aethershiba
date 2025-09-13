@@ -3,8 +3,9 @@
 import { Events, Client, MessageFlags } from 'discord.js';
 import { logger } from '../lib/logger.js';
 import { commandHandler } from '../handlers/commandHandler.js';
-import { HOUSING_PREFIX } from '../const/constatns.js';
-import { PROFILE_PREFIX } from '../const/constatns.js';
+import { HOUSING_PREFIX } from '../const/constants.js';
+import { PROFILE_PREFIX } from '../const/constants.js';
+import { ERROR_OCCURED, UNHANDLED_INTERACTION, UNKOWN_ACTION } from '../const/messages.js';
 
 /**
  * Register the "interactionCreate" event handler.
@@ -48,12 +49,12 @@ export function register(client: Client) {
                 }
 
                 // Otherwise -> log as unhandled
-                logger.warn(`Unhandled interaction: ${interaction.customId}`);
+                logger.warn(`${UNHANDLED_INTERACTION}: ${interaction.customId}`);
 
                 // Send fallback message (ephemeral so only user sees it)
                 if (interaction.isRepliable()) {
                     const reply = {
-                        content: 'Diese Aktion ist derzeit nicht verfügbar.',
+                        content: `${UNKOWN_ACTION}`,
                         flags: MessageFlags.Ephemeral,
                     } as const;
 
@@ -69,7 +70,7 @@ export function register(client: Client) {
             // Catch-all error handler
             logger.error('❌ Error executing command:', error);
             if (interaction.isRepliable()) {
-                const reply = { content: 'Es ist ein Fehler aufgetreten.', flags: MessageFlags.Ephemeral } as const;
+                const reply = { content: `${ERROR_OCCURED}`, flags: MessageFlags.Ephemeral } as const;
                 if (interaction.deferred || interaction.replied) {
                     await interaction.followUp(reply);
                 } else {

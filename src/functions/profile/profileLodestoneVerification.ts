@@ -21,7 +21,7 @@ const tokens = new Map<string, TokenEntry>();
 export function generateToken(userId: string, lodestoneUrl: string, lodestoneId: string) {
     const token = randomBytes(4).toString('hex');
     tokens.set(userId, { token, lodestoneUrl, lodestoneId, expires: Date.now() + TOKEN_LIFETIME });
-    logger.info(`Generated token for ${userId} targeting ${lodestoneId}`);
+    logger.debug(`Generated token for ${userId} targeting ${lodestoneId}`);
     return token;
 }
 
@@ -35,17 +35,17 @@ export function getToken(userId: string): string | null {
 }
 
 async function fetchComment(url: string): Promise<string | null> {
-    logger.info (`Fetching Lodestone profile: ${url}`);
+    logger.debug(`Fetching Lodestone profile: ${url}`);
     try {
         const res = await fetch(url, { headers: { 'user-agent': 'AetherShiba' } });
         if (!res.ok) {
-            logger.warn(`Failed to fetch profile ${url}: ${res.status} ${res.statusText}`);
+            logger.debug(`Failed to fetch profile ${url}: ${res.status} ${res.statusText}`);
             return null;
         };
         const html = await res.text();
         const m = html.match(/<div class="character__selfintroduction"[^>]*>([\s\S]*?)<\/div>/);
         if (!m) {
-            logger.warn(`Self introduction block not found for ${url}`);
+            logger.debug(`Self introduction block not found for ${url}`);
             return null;
         };
         const text = m[1]!
@@ -54,10 +54,10 @@ async function fetchComment(url: string): Promise<string | null> {
             .replace(/&gt;/g, '>')
             .replace(/&amp;/g, '&')
             .trim();
-        logger.info(`Fetches comment text: ${text}`);
+        logger.debug(`Fetches comment text: ${text}`);
         return text;
     } catch (error) {
-        logger.error(`Error fetching profile ${url}:`, error);
+        logger.debug(`Error fetching profile ${url}:`, error);
         return null;
     }
 }
@@ -66,7 +66,7 @@ export async function verifyToken(userId:string) {
     const entry = tokens.get(userId);
 
     if (!entry) {
-        logger.warn(`No Token entry for ${userId}`);
+        logger.debug(`No Token entry for ${userId}`);
         return null;
     };
 
@@ -78,17 +78,17 @@ export async function verifyToken(userId:string) {
 
     const comment = await fetchComment(entry.lodestoneUrl);
     if (!comment) {
-        logger.warn(`Could not retrieve comment for ${entry.lodestoneUrl}`);    
+        logger.debug(`Could not retrieve comment for ${entry.lodestoneUrl}`);    
         return null
     };
 
     if (!comment.includes(entry.token)) {
-        logger.warn(`Token ${entry.token} not found in comment: ${comment}`);
+        logger.debug(`Token ${entry.token} not found in comment: ${comment}`);
         return null       
     };
 
     tokens.delete(userId);
-    logger.info(`Verified Lodestone profile ${entry.lodestoneUrl} for user ${userId}`);
+    logger.debug(`Verified Lodestone profile ${entry.lodestoneUrl} for user ${userId}`);
     return { lodestoneUrl: entry.lodestoneUrl, lodestoneId: entry.lodestoneId };
 }
 

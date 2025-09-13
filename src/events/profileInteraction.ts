@@ -14,7 +14,7 @@ import {
     TextInputStyle,
     ButtonBuilder,
     ButtonStyle,
-    Message,
+    ButtonInteraction,
 } from "discord.js";
 import {
     generateToken,
@@ -29,10 +29,11 @@ import {
     getProfileByUser,
 } from '../functions/profile/profileStore';
 
-import { PROFILE_PREFIX } from "../const/constatns";
+import { PROFILE_PREFIX } from "../const/constants";
 import { tokenEmbed, successEmbed } from "../embeds/profileEmbeds";
+import { ACCOUNT_USED, ALREADY_LINKED, UNABLE_ACCESS, VERIFICATION_CANCELED } from "../const/messages";
 
-const linkMessages = new Map<string, Message>();
+const linkInteractions = new Map<string, ButtonInteraction>();
 
 export function register(client: Client) {
     client.on(Events.InteractionCreate, async (interaction) => {
@@ -49,9 +50,9 @@ export function register(client: Client) {
             // Cancel
             if (id === `${PROFILE_PREFIX}link:cancel`) {
                 clearToken(interaction.user.id);
-                linkMessages.delete(interaction.user.id);
+                linkInteractions.delete(interaction.user.id);
                 await interaction.update({
-                    content: 'Verification cancelled.',
+                    content: `${VERIFICATION_CANCELED}`,
                     embeds: [],
                     components: [],
                 });
@@ -60,7 +61,7 @@ export function register(client: Client) {
 
             // Start
             if (id === `${PROFILE_PREFIX}link:start`) {
-                linkMessages.set(interaction.user.id, interaction.message);
+                linkInteractions.set(interaction.user.id, interaction);
                 const modal = new ModalBuilder()
                     .setCustomId(`${PROFILE_PREFIX}link:submit`)
                     .setTitle('Enter Lodestone URL');
@@ -129,7 +130,7 @@ export function register(client: Client) {
 
                 if (await getProfileByUser(interaction.user.id)) {
                     await interaction.reply({
-                        content: 'You already linked a profile. Use /profile unlink first.',
+                        content: `${ALREADY_LINKED}`,
                         flags: MessageFlags.Ephemeral,
                     });
                     return;
@@ -137,7 +138,7 @@ export function register(client: Client) {
 
                 if (await getProfilebyLodestoneId(lodestoneId)) {
                     await interaction.reply({
-                        content: 'This Lodestone profile is already linked to another user.',
+                        content: `${ACCOUNT_USED}`,
                         flags: MessageFlags.Ephemeral,
                     });
                     return;
@@ -148,7 +149,7 @@ export function register(client: Client) {
                     if (!res.ok) throw new Error('status');
                 } catch {
                     await interaction.reply({
-                        content: 'Unable to access profile. Ensure the link is correct and public.',
+                        content: `${UNABLE_ACCESS}`,
                         flags: MessageFlags.Ephemeral,
                     });
                     return;
@@ -166,19 +167,22 @@ export function register(client: Client) {
                         .setLabel('Cancel')
                         .setStyle(ButtonStyle.Secondary)
                 );
-                
-                const msg = linkMessages.get(interaction.user.id);
-                if (msg) {
+
+                const starter = linkInteractions.get(interaction.user.id);
+                if (starter) {
                     try {
-                        await msg.edit({ embeds: [tokenEmbed(token)], components: [row] });
-                        linkMessages.delete(interaction.user.id);
+                        await starter.editReply({
+                            embeds: [tokenEmbed(token)],
+                            components: [row],
+                        });
+                        linkInteractions.delete(interaction.user.id);
                         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
                         await interaction.deleteReply().catch(() => {});
                         return;
                     } catch {
-                        // fall through and send a fresh reply below
+                        linkInteractions.delete(interaction.user.id);
                     }
-                } 
+                }
 
                 await interaction.reply({
                     embeds: [tokenEmbed(token)],

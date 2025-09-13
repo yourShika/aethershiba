@@ -5,6 +5,7 @@ import { readFile, writeFile } from "fs/promises";
 import path from "path";
 import { threadManager } from "../../lib/threadManager";
 import { logger } from "../../lib/logger";
+import { ANOTHER_HOUSING_TASK_RUNNING, GUILD_ONLY, HOUSING_DATA_RESETED, NO_MESSAGE_FOUND } from "../../const/messages";
 
 /**
  * /housing reset
@@ -34,7 +35,7 @@ export default {
 
         // This command only makes sense inside a guild.
         if (!guildID) {
-            await interaction.reply({ content: 'This command can only be used in a guild.', flags: MessageFlags.Ephemeral });
+            await interaction.reply({ content: `${GUILD_ONLY}`, flags: MessageFlags.Ephemeral });
             return;
         }
 
@@ -46,7 +47,7 @@ export default {
         ) {
 
             await interaction.reply({ 
-                content: 'Another housing task is currently running. Please try again later.', flags: MessageFlags.Ephemeral 
+                content: `${ANOTHER_HOUSING_TASK_RUNNING}`, flags: MessageFlags.Ephemeral 
             });
             return;
         }
@@ -76,7 +77,7 @@ export default {
                 // Nothing to reset for this guild
                 const rec = store[guildID];
                 if (!rec) {
-                    await interaction.editReply({ content: 'No housing messages found for this guild.' });
+                    await interaction.editReply({ content: `${NO_MESSAGE_FOUND}` });
                     return;
                 }
 
@@ -111,7 +112,7 @@ export default {
                 }
 
                 // Final confirmation to the invoker.
-                await interaction.editReply({ content: 'Housing data reset.' });
+                await interaction.editReply({ content: `${HOUSING_DATA_RESETED}` });
             },
             { guildId: guildID, blockWith: ['housing:setup', 'housing:refresh'] }
         );

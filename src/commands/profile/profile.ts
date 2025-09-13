@@ -20,6 +20,7 @@ import inspect from './profileInspect';
 import search from './profileSearch';
 import stats from './profileStats';
 import unlink from './profileUnlink';
+import { UNKOWN_COMMAND } from '../../const/messages';
 
 // Define Subcommand Build
 type Sub = {
@@ -55,7 +56,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const entry = SUBS.find(s => s.name === sub);
     if (!entry) {
         await interaction.reply({ 
-            content: `Unkown subcommand: ${sub}`,
+            content: `${UNKOWN_COMMAND}: ${sub}`,
             flags: MessageFlags.Ephemeral 
         });
         return;

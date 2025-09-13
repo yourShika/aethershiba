@@ -1,6 +1,7 @@
 // commands/housing/housingInfo.ts
 
 import { MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
+import { HOUSING_INFO } from '../../const/messages';
 
 export default {
   name: 'info',
@@ -16,14 +17,7 @@ export default {
    */
   async execute(interaction: ChatInputCommandInteraction) {
     // Build a nicely formatted, readable info message
-    const content =
-      '🏠 **Housing Information**\n\n' +
-      'This bot provides housing plot listings using the **PaissaDB API**.\n' +
-      'While the data is generally reliable, please note:\n\n' +
-      '• Data may be **incomplete** or **delayed**.\n' +
-      '• Listings may not always match in-game status **1:1**.\n' +
-      '• Some posted plots might already be sold or otherwise unavailable.\n\n' +
-      'Use this as a helpful guide, but always verify availability **in-game**.';
+    const content = HOUSING_INFO;
       
     await interaction.reply({ content, flags: MessageFlags.Ephemeral });
   },

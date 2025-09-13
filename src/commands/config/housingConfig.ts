@@ -18,7 +18,8 @@ import { DATACENTERS, DISTRICT_OPTIONS } from "../../const/housing";
 import { getWorldNamesByDC } from "../../functions/housing/housingWorlds";
 import { uiKey, setDraft } from "../../ui/housingUI";
 import { logError } from "../../handlers/errorHandler.js";
-import { HOUSING_PREFIX } from "../../const/constatns";
+import { HOUSING_PREFIX } from "../../const/constants";
+import { FAILED_CONFIG_LOADING } from "../../const/messages";
 
 // Prefix used to namespace customID values for all housing config UI components.
 // This makes routing component interactions straightforward.
@@ -185,7 +186,7 @@ async function handle(interaction: ChatInputCommandInteraction) {
       // Log and inform the user if anything goes wrong while building the UI.
         logError('housing config handle', err);
         if (interaction.isRepliable()) {
-            await interaction.reply({ content: 'Fehler beim Laden der Konfiguration.', flags: MessageFlags.Ephemeral });
+            await interaction.reply({ content: `${FAILED_CONFIG_LOADING}`, flags: MessageFlags.Ephemeral });
         }
     }
 }

@@ -19,6 +19,7 @@ import type { Plot } from '../../functions/housing/housingProvider.paissa.js';
 import { threadManager } from '../../lib/threadManager.js';
 import { logger } from '../../lib/logger.js';
 import { plotKey, plotHash } from '../../functions/housing/housingUtils.js';
+import { ANOTHER_HOUSING_TASK_RUNNING, GUILD_ONLY, HOUSING_NEED_TO_BE_FORUM, HOUSING_REFRESH_RUNNING, NO_FREE_PLOTS, NO_HOUSING_CONFIGURED } from '../../const/messages.js';
 
 // PaissaDB API 
 const provider = new PaissaProvider();
@@ -44,7 +45,7 @@ export default {
     // Make sure the command is only useable in a guild.
     const guildID = interaction.guildId;
     if (!guildID) {
-      await interaction.reply({ content: 'This command can only be used in a guild.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: `${GUILD_ONLY}`, flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -55,7 +56,7 @@ export default {
       threadManager.isLocked('housing:reset', { guildId: guildID }) 
     ) {
       await interaction.reply({
-        content: 'Another housing task is currently running. Please try again later.',
+        content: `${ANOTHER_HOUSING_TASK_RUNNING}`,
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -67,7 +68,7 @@ export default {
     const ok = HousingStart.safeParse(h);
 
     if (!ok.success) {
-      await interaction.reply({ content: 'Housing is not configured.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: `${NO_HOUSING_CONFIGURED}`, flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -77,7 +78,7 @@ export default {
     const ch = await interaction.client.channels.fetch(hc.channelId).catch(() => null);
     if (!ch || ch.type !== ChannelType.GuildForum) {
       await interaction.reply({ 
-        content: 'Configured channel could not be found or is not a forum.', 
+        content: `${HOUSING_NEED_TO_BE_FORUM}`, 
         flags: MessageFlags.Ephemeral 
       });
       return;
@@ -97,7 +98,7 @@ export default {
     const rec = store[guildID];
     if (rec && Object.keys(rec.messages).length > 0) {
       await interaction.reply({
-        content: 'Housing refresh is currently running. Please try again later.',
+        content: `${HOUSING_REFRESH_RUNNING}`,
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -123,7 +124,7 @@ export default {
 
       // When no plots were found.
       if (plots.length === 0) {
-        await interaction.editReply({ content: 'No free plots available.' });
+        await interaction.editReply({ content: `${NO_FREE_PLOTS}` });
         return;
       }
 

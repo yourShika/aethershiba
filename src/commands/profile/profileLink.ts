@@ -14,7 +14,8 @@ import {
 } from 'discord.js';
 import { linkStartEmbed } from '../../embeds/profileEmbeds';
 import { getProfileByUser } from '../../functions/profile/profileStore';
-import { PROFILE_PREFIX } from '../../const/constatns';
+import { PROFILE_PREFIX } from '../../const/constants';
+import { ALREADY_LINKED } from '../../const/messages';
 
 type Sub = {
     name: string;
@@ -32,7 +33,7 @@ const sub: Sub = {
 
         if (existing) {
             await interaction.reply({
-                content: 'You already linked a Lodestone profile. Use /profile unlink first.',
+                content: `${ALREADY_LINKED}`,
                 flags: MessageFlags.Ephemeral,
             });
             return;
