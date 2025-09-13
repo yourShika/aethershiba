@@ -10,6 +10,7 @@ import { HousingRequired } from '../../schemas/housing.js';
 import { PaissaProvider, type Plot } from './housingProvider.paissa.js';
 import { plotEmbed } from '../../embeds/housingEmbeds.js';
 import { threadManager } from '../../lib/threadManager.js';
+import { plotKey, plotHash } from './housingUtils.js';
 
 // ---------------------------------------------------
 // Types & Constants
@@ -32,51 +33,6 @@ type MsgRecord = {
 // PaissaDB API and file path for the JSON file
 const provider = new PaissaProvider();
 const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
-
-// ---------------------------------------------------
-// Helpers: keys & hashing
-// ---------------------------------------------------
-
-// Normalize district names (strip leading "the", lower-case, trim).
-function normDistrict(d: string): string {
-  return d.replace(/^the\s+/i, '').trim().toLowerCase();
-}
-
-/**
- * Create a stable, human-meaningful key for a plot.
- * This lets us correlate an API plot to an existing message.
- */
-function plotKey(p: Plot): string {
-  return [
-    p.dataCenter.toLowerCase(),
-    p.world.toLowerCase(),
-    normDistrict(p.district),
-    p.ward,
-    p.plot
-  ].join(':');
-}
-
-/**
- * Compute a stable hash for a plot's *displayed content*.
- * Only fields that change the embed output should be included here;
- * this ensures we only edit messages if something visible changed.
- */
-function plotHash(p: Plot): string {
-  const stable = {
-    dataCenter: p.dataCenter,
-    world: p.world,
-    district: p.district,
-    ward: p.ward,
-    plot: p.plot,
-    size: p.size,
-    price: p.price,
-    lottery: {
-      phaseUntil: p.lottery?.phaseUntil ?? null,
-      entrants: p.lottery?.entries ?? null,
-    }
-  };
-  return JSON.stringify(stable);
-}
 
 // ---------------------------------------------------
 // Main: refreshHousing
@@ -217,7 +173,7 @@ export async function refreshHousing(client: Client, guildID: string) {
   let removed = 0;
 
   // ---------------------------------------------------
-  // Fetch plots from provider (filtered & valid)
+  // Fetch plots from provider (already filtered by provider)
   // ---------------------------------------------------
   const allPlots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
   const worlds: string[] = (hc.worlds && Array.isArray(hc.worlds) && hc.worlds.length > 0)
@@ -230,15 +186,10 @@ export async function refreshHousing(client: Client, guildID: string) {
     return { added: 0, removed, updated: 0 };
   }
 
-  const nowMs = Date.now();
   for (const world of worlds) {
     try {
       const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
-      // Filter out invalid/expired entries (e.g., lottery phase ended)
-      const valid = p.filter(
-        (pl) => pl.ward > 0 && !(pl.lottery?.phaseUntil && pl.lottery.phaseUntil <= nowMs)
-      );
-      allPlots.push(...valid);
+      allPlots.push(...p);
     } catch (e: any) {
       logger.error(`[🏠Housing][${guildID}] Provider-Fehler (world=${world}): ${String(e)}`);
     }

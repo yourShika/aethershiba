@@ -54,9 +54,15 @@ export function plotEmbed(p: Plot, refreshedAt?: Date) {
         // Footer shows generation + refresh timestamps
         .setFooter({ text: `Posted: ${new Date().toLocaleString()} • Refreshed: ${refreshedAt?.toLocaleString() ?? '-'}` });
 
-    // Add optional field: number of lottery entries
+    // Add field for lottery entries or note when PaissaDB lacks placard data
     if (p.lottery.entries != null) {
         embed.addFields({ name: '🎟️ Lotto Entries', value: String(p.lottery.entries), inline: true });
+    } else {
+        embed.addFields({
+            name: '🎟️ Lotto Entries',
+            value: 'No data – plot may already be sold or unavailable (verify in-game)',
+            inline: false,
+        });
     }
 
     // Add optional field: last update timestamp from PaissaDB API
