@@ -75,7 +75,7 @@ export function plotEmbed(p: Plot, refreshedAt?: Date) {
     let attachment: AttachmentBuilder | undefined;
 
     if (imgFile) {
-        const url = new URL(`../../img/housing/${imgFile}`, import.meta.url);
+        const url = new URL(`../img/housing/${imgFile}`, import.meta.url);
         attachment = new AttachmentBuilder(fileURLToPath(url));
         embed.setImage(`attachment://${imgFile}`);
     }
