@@ -18,32 +18,10 @@ import path from 'node:path';
 import type { Plot } from '../../functions/housing/housingProvider.paissa.js';
 import { threadManager } from '../../lib/threadManager.js';
 import { logger } from '../../lib/logger.js';
+import { plotKey, plotHash } from '../../functions/housing/housingUtils.js';
 
 // PaissaDB API 
 const provider = new PaissaProvider();
-
-// Build a stable key for a plot, used to de-duplicate/store messages.
-function plotKey(p: Plot): string {
-  return [p.dataCenter, p.world, p.district, p.ward, p.plot].join(':');
-}
-
-// Hash only the content that affects the embed; used to detect edits.
-function plotHash(p: Plot): string {
-  const stable = {
-    dataCenter: p.dataCenter,
-    world: p.world,
-    district: p.district,
-    ward: p.ward,
-    plot: p.plot,
-    size: p.size,
-    price: p.price,
-    lottery: {
-      phaseUntil: p.lottery?.phaseUntil ?? null,
-      entrants: p.lottery?.entries ?? null,
-    },
-  };
-  return JSON.stringify(stable);
-}
 
 // ---------------------------------------------------
 // /housing Setup - Command
@@ -136,14 +114,10 @@ export default {
         // Fetch/Filter available plots
         // ---------------------------------------------------
         const plots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
-        const now = Date.now();
 
-        // Fetch all plots
+        // Fetch all plots for each configured world
         for (const world of hc.worlds) {
-          const p = await provider
-            .fetchFreePlots(hc.dataCenter, world, hc.districts)
-            // Filter invalid or expired lottery entries.
-            .then(list => list.filter(pl => pl.ward > 0 && !(pl.lottery?.phaseUntil && pl.lottery.phaseUntil <= now)));
+          const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
           plots.push(...p);
         }
 
