@@ -81,11 +81,11 @@ export async function fetchLodestoneCharacter(id: string): Promise<LodestoneChar
     const raceRaw = get(
       /<p class="character-block__title">Race\/Clan\/Gender<\/p>\s*<p class="character-block__name">([\s\S]*?)<\/p>/i
     );
-    
+
     // Kleine Hilfsfunktion: <br> → \n und alle Tags raus
     const stripHtml = (s: string) =>
       decodeEntities(s.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim());
-    
+
     let race = "", tribe = "", gender = "";
     if (raceRaw) {
       const [line1, line2 = ""] = stripHtml(raceRaw).split("\n"); // "Miqo'te", "Seeker of the Sun / ♀"
@@ -100,8 +100,8 @@ export async function fetchLodestoneCharacter(id: string): Promise<LodestoneChar
     {
       const m = /<p class="frame__chara__world">[\s\S]*?(?:<\/i>\s*)?([^<\[]+?)\s*\[([^\]]+)\][\s\S]*?<\/p>/i.exec(html);
       if (m) {
-        server = decodeEntities(m[1].trim());  // "Alpha"
-        dc     = decodeEntities(m[2].trim());  // "Light"
+        server = decodeEntities(m[1]!.trim());  // "Alpha"
+        dc     = decodeEntities(m[2]!.trim());  // "Light"
       }
     }
 
@@ -130,11 +130,11 @@ export async function fetchLodestoneCharacter(id: string): Promise<LodestoneChar
     const LiRe = /<li>\s*<img[^>]+data-tooltip="([^"]+)"[^>]*>\s*([0-9]+|—|–)\s*<\/li>/g;
     let JmNew: RegExpExecArray | null;
     while ((JmNew = LiRe.exec(html)) !== null) {
-        const tipRaw = decode(JmNew[1]).trim();
+        const tipRaw = decode(JmNew[1] ?? '').trim();
         const lvlTxt = (JmNew[2] || "").toString();
         const level = parseInt(lvlTxt.replace(/[^\d]/g, ""), 10) || 0;
 
-        let name = tipRaw.split(" / ")[0].trim().replace(/\s*\(Limited Job\)\s*$/i, "");
+        let name = (tipRaw.split(" / ")[0] ?? '').trim().replace(/\s*\(Limited Job\)\s*$/i, "");
 
         name = name.replace(/<[^>]+>/g, "").trim();
 
@@ -145,8 +145,8 @@ export async function fetchLodestoneCharacter(id: string): Promise<LodestoneChar
         const jobTableRe = /<tr class="character__job__row">[\s\S]*?<td class="character__job__name">([\s\S]*?)<\/td>[\s\S]*?<td class="character__job__level">(\d+)<\/td>/g;
         let jmOld: RegExpExecArray | null;
         while ((jmOld = jobTableRe.exec(html)) !== null) {
-            const jobName = decode(jmOld[1].replace(/<[^>]+>/g, "")).trim();
-            const lvl = parseInt(jmOld[2], 10);
+            const jobName = decode((jmOld[1] ?? '').replace(/<[^>]+>/g, "")).trim();
+            const lvl = parseInt((jmOld[2] ?? '0'), 10);
             if (jobName) jobs.push({ name: jobName, level: lvl });
         }
     }

@@ -14,6 +14,7 @@ import { PROFILE_PREFIX } from '../../const/constants';
 import { PROFILE_NOT_LINKED, UNABLE_ACCESS } from '../../const/messages';
 import { getProfileByUser } from '../../functions/profile/profileStore';
 import { fetchLodestoneCharacter } from '../../functions/profile/profileLodestoneAPI';
+import { getJobEmoji, getCityEmoji, JOB_CATEGORIES, normalizeKey } from '../../const/emojis';
 
 type Sub = {
     name: string;
@@ -51,31 +52,53 @@ const sub: Sub = {
             const minions = char.minions;
             const mounts = char.mounts;
 
+            const townDisplay = char.town
+                ? `${getCityEmoji(char.town) ?? ''} ${char.town}`.trim()
+                : '-';
+
+            const formatCount = (n?: number) => (typeof n === "number" ? n.toLocaleString() : "-");
+
             const overview = new EmbedBuilder()
                 .setColor(Colors.Blurple)
                 .setTitle(char.name)
                 .setURL(profile.lodestoneUrl)
-                .setThumbnail(char.portrait)
+                .setImage(char.portrait)
+                .setDescription([
+                    `**${char.race}** • ${char.tribe} • ${char.gender}`,
+                    `> 🌐 **${char.dc}** • ${char.server}`
+                ].join("\n"))
                 .addFields(
-                    { name: 'Race / Clan / Gender', value: `${char.race}\n${char.tribe} / ${char.gender}` },
-                    { name: 'Datacenter / World', value: `${char.dc} / ${char.server}` },
-                    { name: 'City-State', value: char.town || '—', inline: true },
-                    { name: 'Grand Company', value: gc, inline: true },
-                    { name: 'Free Company', value: fc },
-                    { name: 'Minions', value: `${minions}`, inline: true },
-                    { name: 'Mounts', value: `${mounts}`, inline: true }
-                );
+                    { name: '🏰 City-State', value: townDisplay || "-", inline: true },
+                    { name: '🏯 Grand Company', value: gc, inline: true },
+                    { name: "\u200B", value: "\u200B", inline: true },
+                    { name: '⛺ Free Company', value: fc || "-", inline: false },
+                    { name: '🧸 Minions', value: `**${formatCount(minions)}**`, inline: true },
+                    { name: '🐎 Mounts', value: `**${formatCount(mounts)}**`, inline: true }
+                )
+                .setFooter({ text: "Lodestone • Tap the title to open the profile • Page 1/2" })
+                .setTimestamp();
 
             const jobs = char.classJobs;
-            const jobLines = jobs
-                .map(j => `${j.name}: ${j.level}`)
-                .join('\n');
+            const jobMap = new Map(jobs.map(j => [normalizeKey(j.name), j.level]));
 
             const classes = new EmbedBuilder()
                 .setColor(Colors.Blurple)
                 .setTitle(`${char.name} - Classes`)
+                .setURL(profile.lodestoneUrl)
                 .setThumbnail(char.portrait)
-                .setDescription(jobLines || 'No class information');
+                .setFooter({ text: "Lodestone • Tap the title to open the profile • Page 2/2" })
+                .setTimestamp();
+                
+            for (const [cat, jobNames] of Object.entries(JOB_CATEGORIES)) {
+                const value = jobNames
+                    .map(name => {
+                        const lvl = jobMap.get(name) ?? 0;
+                        const emoji = getJobEmoji(name);
+                        return emoji ? `${emoji} ${lvl}` : `${name} ${lvl}`;
+                    })
+                    .join(' ');
+                classes.addFields({ name: cat, value: value || '-' });
+            }
 
             const pages: [EmbedBuilder, ...EmbedBuilder[]] = [overview, classes];
 
