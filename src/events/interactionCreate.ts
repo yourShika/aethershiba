@@ -5,7 +5,7 @@ import { logger } from '../lib/logger.js';
 import { commandHandler } from '../handlers/commandHandler.js';
 import { HOUSING_PREFIX } from '../const/constants.js';
 import { PROFILE_PREFIX } from '../const/constants.js';
-import { ERROR_OCCURED, UNHANDLED_INTERACTION, UNKOWN_ACTION } from '../const/messages.js';
+import { ERROR_OCCURRED, UNHANDLED_INTERACTION, UNKNOWN_ACTION } from '../const/messages.js';
 
 /**
  * Register the "interactionCreate" event handler.
@@ -54,7 +54,7 @@ export function register(client: Client) {
                 // Send fallback message (ephemeral so only user sees it)
                 if (interaction.isRepliable()) {
                     const reply = {
-                        content: `${UNKOWN_ACTION}`,
+                        content: `${UNKNOWN_ACTION}`,
                         flags: MessageFlags.Ephemeral,
                     } as const;
 
@@ -70,7 +70,7 @@ export function register(client: Client) {
             // Catch-all error handler
             logger.error('❌ Error executing command:', error);
             if (interaction.isRepliable()) {
-                const reply = { content: `${ERROR_OCCURED}`, flags: MessageFlags.Ephemeral } as const;
+                const reply = { content: `${ERROR_OCCURRED}`, flags: MessageFlags.Ephemeral } as const;
                 if (interaction.deferred || interaction.replied) {
                     await interaction.followUp(reply);
                 } else {

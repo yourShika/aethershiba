@@ -5,7 +5,7 @@
 // view or modify guild-specific configuration stored via configManager.
 
 import { SlashCommandBuilder, MessageFlags, type ChatInputCommandInteraction } from "discord.js";
-import { UNKOWN_COMMAND } from "../../const/messages";
+import { UNKNOWN_COMMAND } from "../../const/messages";
 
 // Shape every subcommand must follow.
 export interface ConfigSubcommand {
@@ -46,7 +46,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const entry = SUBCOMMANDS.find(s => s.name === sub);
 
     if (!entry) {
-        await interaction.reply({ content: `${UNKOWN_COMMAND}: ${sub}`, flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: `${UNKNOWN_COMMAND}: ${sub}`, flags: MessageFlags.Ephemeral });
         return;
     }
     await entry.execute(interaction);

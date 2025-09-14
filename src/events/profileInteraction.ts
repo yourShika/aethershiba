@@ -15,6 +15,7 @@ import {
     ButtonBuilder,
     ButtonStyle,
     ButtonInteraction,
+    ComponentType,
 } from "discord.js";
 import {
     generateToken,
@@ -22,6 +23,7 @@ import {
     clearToken,
     extractLodestoneId,
     getToken,
+    TOKEN_LIFETIME,
 } from '../functions/profile/profileLodestoneVerification';
 import {
     addProfile,
@@ -91,10 +93,12 @@ export function register(client: Client) {
                     return;
                 }
 
+                const ffxivCollectUrl = `https://ffxivcollect.com/characters/${data.lodestoneId}`;
                 await addProfile({
                     userId: interaction.user.id,
                     lodestoneId: data.lodestoneId,
                     lodestoneUrl: data.lodestoneUrl,
+                    ffxivCollectUrl,
                     verified: true,
                     verifiedAt: Date.now(),
                 });
@@ -169,26 +173,33 @@ export function register(client: Client) {
                 );
 
                 const starter = linkInteractions.get(interaction.user.id);
+                let message;
                 if (starter) {
                     try {
-                        await starter.editReply({
+                        message = await starter.editReply({
                             embeds: [tokenEmbed(token)],
                             components: [row],
                         });
                         linkInteractions.delete(interaction.user.id);
                         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
                         await interaction.deleteReply().catch(() => {});
-                        return;
                     } catch {
                         linkInteractions.delete(interaction.user.id);
                     }
                 }
+                if (!message) {
+                    await interaction.reply({
+                        embeds: [tokenEmbed(token)],
+                        components: [row],
+                        flags: MessageFlags.Ephemeral,
+                    });
+                    message = await interaction.fetchReply();
+                }
 
-                await interaction.reply({
-                    embeds: [tokenEmbed(token)],
-                    components: [row],
-                    flags: MessageFlags.Ephemeral,
-                });
+                message.createMessageComponentCollector({
+                    componentType: ComponentType.Button,
+                    time: TOKEN_LIFETIME
+                }).once('end', () => clearToken(interaction.user.id));
             }
         }
     });

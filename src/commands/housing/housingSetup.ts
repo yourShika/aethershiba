@@ -19,7 +19,7 @@ import type { Plot } from '../../functions/housing/housingProvider.paissa.js';
 import { threadManager } from '../../lib/threadManager.js';
 import { logger } from '../../lib/logger.js';
 import { plotKey, plotHash } from '../../functions/housing/housingUtils.js';
-import { ANOTHER_HOUSING_TASK_RUNNING, GUILD_ONLY, HOUSING_NEED_TO_BE_FORUM, HOUSING_REFRESH_RUNNING, NO_FREE_PLOTS, NO_HOUSING_CONFIGURED } from '../../const/messages.js';
+import { ANOTHER_HOUSING_TASK_RUNNING, GUILD_ONLY, HOUSING_NEEDS_FORUM, HOUSING_REFRESH_RUNNING, NO_FREE_PLOTS, NO_HOUSING_CONFIGURED } from '../../const/messages.js';
 
 // PaissaDB API 
 const provider = new PaissaProvider();
@@ -78,7 +78,7 @@ export default {
     const ch = await interaction.client.channels.fetch(hc.channelId).catch(() => null);
     if (!ch || ch.type !== ChannelType.GuildForum) {
       await interaction.reply({ 
-        content: `${HOUSING_NEED_TO_BE_FORUM}`, 
+        content: `${HOUSING_NEEDS_FORUM}`, 
         flags: MessageFlags.Ephemeral 
       });
       return;

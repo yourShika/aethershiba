@@ -13,6 +13,7 @@ export interface Profile {
     userId: string;
     lodestoneId: string;
     lodestoneUrl: string;
+    ffxivCollectUrl: string;
     verified: boolean;
     verifiedAt: number;
 }

@@ -14,7 +14,7 @@ import refresh from './housingRefresh';
 import research from './housingResearch';
 import info from './housingInfo';
 import reset from './housingReset';
-import { UNKOWN_COMMAND } from "../../const/messages";
+import { UNKNOWN_COMMAND } from "../../const/messages";
 
 // ---------------------------------------------------
 // Subcommand type
@@ -63,7 +63,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const entry = SUBS.find(s => s.name === sub);
 
     if (!entry) {
-        await interaction.reply({ content: `${UNKOWN_COMMAND}: ${sub}`, flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: `${UNKNOWN_COMMAND}: ${sub}`, flags: MessageFlags.Ephemeral });
         return;
     }
 

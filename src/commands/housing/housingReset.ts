@@ -5,7 +5,7 @@ import { readFile, writeFile } from "fs/promises";
 import path from "path";
 import { threadManager } from "../../lib/threadManager";
 import { logger } from "../../lib/logger";
-import { ANOTHER_HOUSING_TASK_RUNNING, GUILD_ONLY, HOUSING_DATA_RESETED, NO_MESSAGE_FOUND } from "../../const/messages";
+import { ANOTHER_HOUSING_TASK_RUNNING, GUILD_ONLY, HOUSING_DATA_RESET, NO_MESSAGE_FOUND } from "../../const/messages";
 
 /**
  * /housing reset
@@ -112,7 +112,7 @@ export default {
                 }
 
                 // Final confirmation to the invoker.
-                await interaction.editReply({ content: `${HOUSING_DATA_RESETED}` });
+                await interaction.editReply({ content: `${HOUSING_DATA_RESET}` });
             },
             { guildId: guildID, blockWith: ['housing:setup', 'housing:refresh'] }
         );
