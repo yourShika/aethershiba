@@ -55,13 +55,20 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const sub = interaction.options.getSubcommand(true);
     const entry = SUBS.find(s => s.name === sub);
     if (!entry) {
-        await interaction.reply({ 
+        await interaction.reply({
             content: `${UNKNOWN_COMMAND}: ${sub}`,
-            flags: MessageFlags.Ephemeral 
+            flags: MessageFlags.Ephemeral
         });
         return;
     }
     await entry.execute(interaction);
 }
 
-export default { data, execute, emoji: '📜' } satisfies Command;
+export async function autocomplete(interaction: AutocompleteInteraction) {
+    const sub = interaction.options.getSubcommand();
+    const entry = SUBS.find(s => s.name === sub);
+    if (!entry || !entry.autocomplete) return;
+    await entry.autocomplete(interaction);
+}
+
+export default { data, execute, autocomplete, emoji: '📜' } satisfies Command;

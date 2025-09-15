@@ -1,3 +1,5 @@
+// embeds/profileEmbeds.ts
+
 import { EmbedBuilder, Colors } from "discord.js";
 
 export const linkStartEmbed = () => 
