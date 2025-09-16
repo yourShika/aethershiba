@@ -14,12 +14,25 @@ import {
 } from 'discord.js';
 
 import { DATACENTERS } from '../../const/housing';
-import { getWorldNamesByDC } from '../../functions/housing/housingWorlds';
+import { getWorldNamesByDC, fetchAllWorlds } from '../../functions/housing/housingWorlds';
 import { PROFILE_PREFIX } from '../../const/constants';
 import { UNABLE_ACCESS } from '../../const/messages';
 import { getJobEmoji, getCityEmoji, JOB_CATEGORIES, normalizeKey } from '../../const/emojis';
 import { fetchLodestoneCharacter, searchLodestoneCharacters } from '../../functions/profile/profileLodestoneAPI';
 import { getProfilebyLodestoneId } from '../../functions/profile/profileStore';
+
+const SEARCH_ALL_CHOICE = { name: 'Search all', value: '__all__' } as const;
+const SEARCH_ALL_KEYWORDS = ['search all', 'all'];
+
+const normalize = (value: string) => value.trim().toLowerCase();
+
+const shouldIncludeSearchAll = (value: string) => {
+    const needle = normalize(value);
+    if (!needle) return true;
+    return SEARCH_ALL_KEYWORDS.some(keyword => keyword.startsWith(needle));
+};
+
+const isSearchAllValue = (value: string | null) => value === SEARCH_ALL_CHOICE.value;
 
 type Sub = {
     name: string;
@@ -37,7 +50,7 @@ const sub: Sub = {
             opt.setName('datacenter')
                 .setDescription('Datacenter')
                 .setRequired(true)
-                .addChoices(...DATACENTERS.map(dc => ({ name: dc, value: dc }))))
+                .addChoices(SEARCH_ALL_CHOICE, ...DATACENTERS.map(dc => ({ name: dc, value: dc }))))
         .addStringOption(opt =>
             opt.setName('world')
                 .setDescription('World')
@@ -196,15 +209,47 @@ const sub: Sub = {
 
         if (focused.name === 'world') {
             const dc = interaction.options.getString('datacenter');
-            const worlds = dc ? await getWorldNamesByDC(dc) : [];
-            const val = String(focused.value).toLowerCase();
+            const rawVal = String(focused.value ?? '');
+            const includeSearchAll = shouldIncludeSearchAll(rawVal);
+            const normalizedQuery = normalize(rawVal);
 
-            const choices = worlds
-                .filter(w => w.toLowerCase().startsWith(val))
-                .slice(0, 25)
-                .map(w => ({ name: w, value: w }));
+            let worlds: string[] = [];
+            try {
+                if (dc && !isSearchAllValue(dc)) {
+                    worlds = await getWorldNamesByDC(dc);
+                } else {
+                    const allWorlds = await fetchAllWorlds();
+                    worlds = allWorlds.map(world => world.name);
+                }
+            } catch {
+                worlds = [];
+            }
 
-            await interaction.respond(choices);
+            if (worlds.length > 0) {
+                const seen = new Set<string>();
+                const uniqueWorlds: string[] = [];
+                
+                for (const world of worlds) {
+                    const key = normalize(world);
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    uniqueWorlds.push(world);
+                }
+                worlds = uniqueWorlds.sort((a, b) => a.localeCompare(b)); 
+            }
+
+            const limit = 25 - (includeSearchAll ? 1 : 0);
+            const worldChoices = worlds
+                .filter(world => normalize(world).startsWith(normalizedQuery))
+                .slice(0, Math.max(limit, 0))
+                .map(world => ({ name: world, value: world }));
+
+            if (includeSearchAll) {
+                const response = [SEARCH_ALL_CHOICE, ...worldChoices].slice(0, 25);
+                await interaction.respond(response);
+            } else {
+                await interaction.respond(worldChoices);
+            }
             return;
         }
 
@@ -217,7 +262,8 @@ const sub: Sub = {
                 return;
             }
 
-            const results = await searchLodestoneCharacters(query, world);
+            const lodestoneWorld = isSearchAllValue(world) ? '' : world;
+            const results = await searchLodestoneCharacters(query, lodestoneWorld);
             const choices = results
                 .slice(0, 25)
                 .map(r => ({ name: `${r.name} @ ${r.world}`, value: r.id }));
