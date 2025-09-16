@@ -53,6 +53,80 @@ function decodeEntities(s: string): string {
     .replace(/&quot;/g, '"');
 }
 
+export interface LodestoneSearchResult {
+    id: string;
+    name: string;
+    world: string;
+    dc?: string;
+}
+
+function stripTags(input: string): string {
+    return decodeEntities(input
+        .replace(/<br\s*\/?/gi, " ")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/\s+/g, " ").trim());
+}
+
+export async function searchLodestoneCharacters(name: string, world: string): Promise<LodestoneSearchResult[]> {
+    const params = new URLSearchParams();
+    params.set("q", name);
+    params.set("worldname", world);
+    params.set("classjob", "");
+    params.set("race_tribe", "");
+    params.set("blob_lang", "ja");
+    params.set("blob_lang", "en");
+    params.set("blob_lang", "de");
+    params.set("blob_lang", "fr");
+    params.set("order", "");
+    
+    const url = `https://eu.finalfantasyxiv.com/lodestone/character/?${params.toString()}`;
+    logger.info(`Searching Lodestone characters: ${url}`);
+
+    const html = await fetchText(url);
+    if (!html) return [];
+
+    const results: LodestoneSearchResult[] = [];
+    const patterns = [
+        /<a[^>]*href=['"]\/lodestone\/character\/(\d+)(?:\/)?['"][^>]*>[\s\S]*?<p[^>]*class=(?:"|')(?:entry__name|ldst__result__name)(?:"|')[^>]*>([\s\S]*?)<\/p>[\s\S]*?<p[^>]*class=(?:"|')(?:entry__world|ldst__result__world)(?:"|')[^>]*>([\s\S]*?)<\/p>/g,
+    ];    
+
+patternLoop:
+    for (const itemRe of patterns) {
+        itemRe.lastIndex = 0;
+        let m:RegExpExecArray | null;
+        while ((m = itemRe.exec(html)) !== null) {
+            const id = m[1];
+            const rawName = stripTags(m[2] ?? "");
+            const rawWorld = stripTags(m[3] ?? "");
+            if (!id || !rawName || !rawWorld) continue;
+            
+            const worldMatch = /(.*?)(?:\s*\[([^\]]+)\])?$/.exec(rawWorld);
+            const worldName = worldMatch?.[1]?.trim() ?? rawWorld;
+            const dcName = worldMatch?.[2]?.trim();
+            
+            if (worldName && world && worldName.toLowerCase() !== world.toLowerCase()) continue;
+            
+            const entry: LodestoneSearchResult = {
+                id,
+                name: rawName,
+                world: worldName,
+            };
+    
+            if (dcName) entry.dc = dcName;
+            
+            results.push(entry);
+            
+            if (results.length >= 25) {
+                break patternLoop;
+            } 
+        }
+        if (results.length > 0) {
+            break;
+        }
+    }
+    return results;
+}
+
 export async function fetchLodestoneCharacter(id: string): Promise<LodestoneCharacter | null> {
     const url = `https://eu.finalfantasyxiv.com/lodestone/character/${id}/`;
     logger.debug(`Fetching Lodestone character: ${url}`);
