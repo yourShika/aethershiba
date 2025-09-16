@@ -19,7 +19,7 @@ import { PROFILE_PREFIX } from '../../const/constants';
 import { UNABLE_ACCESS } from '../../const/messages';
 import { getJobEmoji, getCityEmoji, JOB_CATEGORIES, normalizeKey } from '../../const/emojis';
 import { fetchLodestoneCharacter, searchLodestoneCharacters } from '../../functions/profile/profileLodestoneAPI';
-import { autocomplete } from './profile';
+import { getProfilebyLodestoneId } from '../../functions/profile/profileStore';
 
 type Sub = {
     name: string;
@@ -57,6 +57,11 @@ const sub: Sub = {
             if (!char) throw new Error('lodestone');
 
             const lodestoneUrl = `https://eu.finalfantasyxiv.com/lodestone/character/${id}`;
+            const linkedProfile = await getProfilebyLodestoneId(id);
+            const linkedMember = linkedProfile && interaction.guild
+                ? await interaction.guild.members.fetch(linkedProfile.userId).catch(() => null)
+                : null;
+
             const gc = char.grandCompany || '-';
             const fc = char.freeCompanyName
                 ? `[${char.freeCompanyName}](https://eu.finalfantasyxiv.com/lodestone/freecompany/${char.freeCompanyId}/)`
@@ -88,6 +93,10 @@ const sub: Sub = {
                 )
                 .setFooter({ text: 'Lodestone • Tap the title to open the profile • Page 1/2' })
                 .setTimestamp();
+
+            if (linkedMember) {
+                overview.addFields({ name: `🔗 Linked Discord Account`, value: linkedMember.toString(), inline: false });
+            }
             
             const jobs = char.classJobs;
             const jobMap = new Map(jobs.map(j => [normalizeKey(j.name), j.level]));
