@@ -16,8 +16,8 @@ import type { Command } from '../../handlers/commandHandler';
 // Command Import
 import link from './profileLink';
 import me from './profileMe';
-import inspect from './profileInspect';
-import search from './profileSearch';
+import inspect from './profileSearch';
+import search from './profileInspect';
 import stats from './profileStats';
 import unlink from './profileUnlink';
 import { UNKNOWN_COMMAND } from '../../const/messages';
