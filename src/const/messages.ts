@@ -39,3 +39,4 @@ export const VERIFICATION_CANCELED = "❌ Verification cancelled.";
 export const ACCOUNT_USED          = "⚠️ This Lodestone profile is already linked to another user.";
 export const UNABLE_ACCESS         = "🔒 Unable to access profile. Ensure the link is correct and public.";
 export const PROFILE_NOT_LINKED    = "🔗 You have not linked a Lodestone profile. Use /profile link first.";
+export const PROFILE_USER_NOT_LINKED = (userTag: string) => `🔗 ${userTag} has not linked a Lodestone profile to their Discord account.`;
