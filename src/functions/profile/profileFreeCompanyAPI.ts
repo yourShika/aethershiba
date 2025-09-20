@@ -178,6 +178,28 @@ const parseIconList = (raw: string): string[] => {
     return Array.from(unique.values());
 };
 
+const parseFormedDetail = (detail: { raw: string; text: string }): string | null => {
+    const textValue = detail.text?.trim();
+    if (textValue) return textValue;
+
+    const timestampMatch = /ldst_strftime\(\s*(\d+)\s*,/i.exec(detail.raw)
+        ?? /data-js-datetime-value="(\d+)"/i.exec(detail.raw);
+    const timestamp = timestampMatch?.[1] ? Number(timestampMatch[1]) : null;
+
+    if (timestamp && Number.isFinite(timestamp)) {
+        const date = new Date(timestamp * 1000);
+        if (!Number.isNaN(date.getTime())) {
+            const year = String(date.getUTCFullYear()).padStart(4, '0');
+            const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(date.getUTCDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+    }
+
+    const fallback = decodeHTML(detail.raw);
+    return fallback || null;
+};
+
 const parseNameAndTag = (value: string): { name: string; tag?: string } => {
     const trimmed = value.trim();
     if (!trimmed) return { name: '' };
@@ -539,7 +561,10 @@ export async function fetchFreeCompanyProfile(
     if (!profile.slogan && sloganMatch) profile.slogan = decodeHTML(sloganMatch[1] ?? '');
 
     const formedDetail = extractDetail(html, 'Formed');
-    if (formedDetail?.text) profile.formed = formedDetail.text;
+    if (formedDetail) {
+        const formedValue = parseFormedDetail(formedDetail);
+        if (formedValue) profile.formed = formedValue;
+    }
 
     const membersDetail = extractDetail(html, 'Active Members');
     if (membersDetail?.text) profile.members = membersDetail.text;
