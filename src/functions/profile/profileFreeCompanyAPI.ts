@@ -74,8 +74,16 @@ const parseIconList = (raw: string): string[] => {
     const icons = Array.from(
         raw.matchAll(/<(?:img|span)[^>]*(?:data-tooltip|title|alt)="([^"]+)"[^>]*>/gi)
     )
-    .map(match => decodeHTML(match[1] ?? ''))
-    .filter(Boolean);
+        .map(match => decodeHTML(match[1] ?? ''))
+        .filter(Boolean);
+
+    const listItems = Array.from(raw.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi))
+        .map(match => decodeHTML(match[1] ?? ''))
+        .filter(Boolean);
+
+    const paragraphItems = Array.from(raw.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi))
+        .map(match => decodeHTML(match[1] ?? ''))
+        .filter(Boolean);
 
     const listItems = Array.from(raw.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi))
         .map(match => decodeHTML(match[1] ?? ''))
@@ -99,16 +107,140 @@ const parseIconList = (raw: string): string[] => {
     return Array.from(unique.values());
 };
 
+const normalizeLabelValue = (value: string) => decodeHTML(value)
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '');
+
+const DETAIL_LABEL_ALIASES: Record<string, string[]> = {
+    'Company Slogan': ['gesellschaftsmotto', 'firmenmotto', 'slogan'],
+    Formed: ['gegrundet', 'gegruendet'],
+    'Active Members': ['aktivemitglieder'],
+    Rank: ['rang'],
+    Reputation: ['ansehen'],
+    Ranking: ['rangliste'],
+    'Estate Profile': ['grundstucksprofil', 'wohnsitzprofil'],
+    Recruitment: ['rekrutierung'],
+    Active: ['aktiv'],
+    Focus: ['fokus', 'ausrichtung', 'schwerpunkte'],
+    Seeking: ['gesucht'],
+};
+
+const extractHeadingDetail = (html: string, label: string): { raw: string; text: string } | null => {
+    const normalizedLabel = normalizeLabelValue(label);
+    const aliasLabels = DETAIL_LABEL_ALIASES[label]?.map(normalizeLabelValue) ?? [];
+    const candidates = [normalizedLabel, ...aliasLabels].filter(Boolean);
+    if (!candidates.length && normalizedLabel) candidates.push(normalizedLabel);
+
+    const headingRe = /<h3[^>]*class="[^"]*heading--lead[^"]*"[^>]*>([\s\S]*?)<\/h3>/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = headingRe.exec(html)) !== null) {
+        const headingText = decodeHTML(match[1] ?? '');
+        const normalizedHeading = normalizeLabelValue(headingText);
+        if (!normalizedHeading) continue;
+
+        const matched = candidates.some(candidate => {
+            if (!candidate) return false;
+            if (normalizedHeading === candidate) return true;
+            if (normalizedHeading.startsWith(candidate) || candidate.startsWith(normalizedHeading)) return true;
+            if (normalizedHeading.length === candidate.length) {
+                let diff = 0;
+                for (let i = 0; i < candidate.length; i += 1) {
+                    if (normalizedHeading[i] !== candidate[i]) diff += 1;
+                    if (diff > 1) return false;
+                }
+                return diff <= 1;
+            }
+            return false;
+        });
+
+        if (!matched) continue;
+
+        const contentStart = match.index + match[0].length;
+        const remainder = html.slice(contentStart);
+        const nextHeadingMatch = /<h3[^>]*class="[^"]*heading--lead[^"]*"[^>]*>/i.exec(remainder);
+        const endIndex = nextHeadingMatch ? nextHeadingMatch.index : remainder.length;
+        const raw = remainder.slice(0, endIndex).trim();
+        if (!raw) return null;
+        return { raw, text: decodeHTML(raw) };
+    }
+
+    return null;
+};
+
 const extractDetail = (html: string, label: string): { raw: string; text: string } | null => {
     const re = new RegExp(
         `<dt[^>]*>\\s*(?:<[^>]+>\\s*)*${escapeRegex(label)}(?:\\s*<[^>]+>)*\\s*<\\/dt>\\s*<dd[^>]*>([\\s\\S]*?)<\\/dd>`,
         'i',
-    );    
+    );
     const match = re.exec(html);
-    if (!match) return null;
-    const raw = match[1] ?? '';
-    return { raw, text: decodeHTML(raw) };
-}; 
+    if (match) {
+        const raw = match[1] ?? '';
+        return { raw, text: decodeHTML(raw) };
+    }
+
+    return extractHeadingDetail(html, label);
+};
+
+const parseReputationDetail = (raw: string): string[] => {
+    const entries: string[] = [];
+    const blockRe = /<div[^>]*class="freecompany__reputation(?:\s+last)?[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = blockRe.exec(raw)) !== null) {
+        const block = match[1] ?? '';
+        const nameMatch = /<p[^>]*class="freecompany__reputation__gcname"[^>]*>([\s\S]*?)<\/p>/i.exec(block);
+        const rankMatch = /<p[^>]*class="freecompany__reputation__rank"[^>]*>([\s\S]*?)<\/p>/i.exec(block);
+        const name = nameMatch ? decodeHTML(nameMatch[1] ?? '') : '';
+        const rank = rankMatch ? decodeHTML(rankMatch[1] ?? '') : '';
+        if (name || rank) entries.push([name, rank].filter(Boolean).join(' — '));
+    }
+
+    if (entries.length) return entries;
+
+    const fallback = decodeHTML(raw);
+    return fallback ? [fallback] : [];
+};
+
+const parseRankingDetail = (raw: string): string => {
+    const rows = Array.from(raw.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi))
+        .map(match => decodeHTML(match[1] ?? '').trim())
+        .filter(Boolean);
+
+    if (rows.length) return rows.join('\n');
+
+    const paragraphs = Array.from(raw.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi))
+        .map(match => decodeHTML(match[1] ?? '').trim())
+        .filter(Boolean);
+
+    if (paragraphs.length) return paragraphs.join('\n');
+
+    return decodeHTML(raw);
+};
+
+const parseEstateDetail = (raw: string): string => {
+    const nameMatch = /<p[^>]*class="freecompany__estate__name"[^>]*>([\s\S]*?)<\/p>/i.exec(raw);
+    const textMatch = /<p[^>]*class="freecompany__estate__text"[^>]*>([\s\S]*?)<\/p>/i.exec(raw);
+    const titleMatch = /<p[^>]*class="freecompany__estate__title"[^>]*>([\s\S]*?)<\/p>/i.exec(raw);
+
+    const name = nameMatch ? decodeHTML(nameMatch[1] ?? '') : '';
+    const text = textMatch ? decodeHTML(textMatch[1] ?? '') : '';
+    const title = titleMatch ? decodeHTML(titleMatch[1] ?? '') : '';
+
+    const parts = [] as string[];
+    if (name) parts.push(name);
+    if (text) {
+        parts.push(text);
+    } else if (title) {
+        parts.push(title);
+    }
+
+    if (parts.length) return parts.join('\n');
+
+    return decodeHTML(raw);
+};
 
 const parseHeaderInfo = (html: string, profile: FreeCompanyProfile) => {
     const nameMatch = /<p[^>]*class="freecompany__text__name"[^>]*>([\s\S]*?)<\/p>/i.exec(html)
@@ -145,11 +277,18 @@ const parseHeaderInfo = (html: string, profile: FreeCompanyProfile) => {
         }
     }
 
-    const crestBlock = /<div[^>]*class="freecompany__crest__image"[^>]*>([\s\S]*?)<\/div>/i.exec(html);
-    if (crestBlock) {
-        const images = Array.from(crestBlock[1]?.matchAll(/<img[^>]+src="([^"]+)"[^>]*>/gi) ?? []);
-        const crest = images.at(-1)?.[1] ?? images[0]?.[1];
-        if (crest) profile.crest = crest;
+    const crestBaseMatch = /<img[^>]+src="([^"]+)"[^>]*class="[^"]*freecompany__crest__base[^"]*"[^>]*>/i.exec(html);
+    if (crestBaseMatch?.[1]) {
+        profile.crest = crestBaseMatch[1];
+    }
+
+    if (!profile.crest) {
+        const crestBlock = /<div[^>]*class="freecompany__crest__image"[^>]*>([\s\S]*?)<\/div>/i.exec(html);
+        if (crestBlock) {
+            const images = Array.from(crestBlock[1]?.matchAll(/<img[^>]+src="([^"]+)"[^>]*>/gi) ?? []);
+            const crest = images.at(-1)?.[1] ?? images[0]?.[1];
+            if (crest) profile.crest = crest;
+        }
     }
 
     if (!profile.crest) {
@@ -203,7 +342,7 @@ export async function searchFreeCompanies(
         if (crestMatch) {
             const overlayBlock = crestMatch[2] ?? '';
             const overlayMatch = /<img[^>]+src="([^"]+)"[^>]*>/i.exec(overlayBlock);
-            crest = overlayMatch ? overlayMatch[1] : crestMatch[1];
+            crest = crestMatch[1] || overlayMatch?.[1];
         } else {
             const simpleCrestMatch = /<div class="entry__freecompany__crest[\s\S]*?<img[^>]+src="([^"]+)"[^>]*>/i.exec(block);
             crest = simpleCrestMatch ? simpleCrestMatch[1] : undefined;
@@ -285,15 +424,21 @@ export async function fetchFreeCompanyProfile(
 
     const reputationDetail = extractDetail(html, 'Reputation');
     if (reputationDetail) {
-        const list = parseIconList(reputationDetail.raw);
-        profile.reputation = list.length ? list.join(', ') : reputationDetail.text;
+        const list = parseReputationDetail(reputationDetail.raw);
+        profile.reputation = list.length ? list.join('\n') : reputationDetail.text;
     }
 
     const rankingDetail = extractDetail(html, 'Ranking');
-    if (rankingDetail?.text) profile.ranking = rankingDetail.text;
+    if (rankingDetail) {
+        const formatted = parseRankingDetail(rankingDetail.raw);
+        profile.ranking = formatted || rankingDetail.text;
+    }
 
     const estateDetail = extractDetail(html, 'Estate Profile');
-    if (estateDetail?.text) profile.estate = estateDetail.text;
+    if (estateDetail) {
+        const formatted = parseEstateDetail(estateDetail.raw);
+        profile.estate = formatted || estateDetail.text;
+    }
 
     const recruitmentDetail = extractDetail(html, 'Recruitment');
     if (recruitmentDetail?.text) profile.recruitmentDetail = recruitmentDetail.text;
