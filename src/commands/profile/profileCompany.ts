@@ -59,6 +59,41 @@ const FOCUS_EMOJI_MAP: Record<string, string> = {
     hardcore: '<:Hardcore:1418907822044876892>',
 };
 
+const FOCUS_DISPLAY_ALIASES = new Map<string, string>();
+
+const addFocusAlias = (display: string, alias: string) => {
+    const normalized = normalizeFocusValue(alias);
+    if (!normalized) return;
+    if (!FOCUS_DISPLAY_ALIASES.has(normalized)) {
+        FOCUS_DISPLAY_ALIASES.set(normalized, display);
+    }
+
+    const compact = normalized.replace(/\s+/g, '');
+    if (compact !== normalized && !FOCUS_DISPLAY_ALIASES.has(compact)) {
+        FOCUS_DISPLAY_ALIASES.set(compact, display);
+    }
+};
+
+const registerFocusDisplay = (display: string, aliases: string[]) => {
+    const trimmedDisplay = display.trim();
+    if (!trimmedDisplay) return;
+
+    addFocusAlias(trimmedDisplay, trimmedDisplay);
+    for (const alias of aliases) {
+        addFocusAlias(trimmedDisplay, alias);
+    }
+};
+
+registerFocusDisplay('Role-playing', ['role-playing', 'roleplaying', 'roleplay']);
+registerFocusDisplay('Leveling', ['leveling']);
+registerFocusDisplay('Casual', ['casual']);
+registerFocusDisplay('Hardcore', ['hardcore']);
+registerFocusDisplay('Dungeons', ['dungeons', 'dungeon']);
+registerFocusDisplay('Guildhests', ['guildhests', 'guildhest', 'gildhests']);
+registerFocusDisplay('Trials', ['trials', 'trial']);
+registerFocusDisplay('Raids', ['raids', 'raid']);
+registerFocusDisplay('PvP', ['pvp']);
+
 const getFocusEmoji = (value: string): string | null => {
     const normalized = normalizeFocusValue(value);
     if (!normalized) return null;
@@ -66,12 +101,79 @@ const getFocusEmoji = (value: string): string | null => {
     return FOCUS_EMOJI_MAP[normalized] ?? FOCUS_EMOJI_MAP[compact] ?? null;
 };
 
+const expandFocusValue = (value: string): string[] => {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    const normalized = normalizeFocusValue(trimmed);
+    if (!normalized) return [];
+
+    const padded = ` ${normalized} `;
+    const matches: Array<{ display: string; alias: string; index: number }> = [];
+
+    for (const [alias, display] of FOCUS_DISPLAY_ALIASES) {
+        const search = ` ${alias} `;
+        const index = padded.indexOf(search);
+        if (index === -1) continue;
+        matches.push({ display, alias, index });
+    }
+
+    if (!matches.length) {
+        const canonical = FOCUS_DISPLAY_ALIASES.get(normalized);
+        if (canonical) return [canonical];
+        return [trimmed];
+    }
+
+    matches.sort((a, b) => a.index - b.index);
+
+    const canonicalMatches: Array<{ display: string; alias: string }> = [];
+    const seenCanonical = new Set<string>();
+
+    for (const match of matches) {
+        const canonicalKey = normalizeFocusValue(match.display);
+        if (!canonicalKey || seenCanonical.has(canonicalKey)) continue;
+        seenCanonical.add(canonicalKey);
+        canonicalMatches.push({ display: match.display, alias: match.alias });
+    }
+
+    if (canonicalMatches.length === 1) {
+        const single = canonicalMatches[0];
+        if (!single) return [trimmed];
+
+        const alias = single.alias;
+        const compactAlias = alias.replace(/\s+/g, '');
+        if (normalized === alias || normalized === compactAlias) {
+            return [single.display];
+        }
+        return [trimmed];
+    }
+
+    if (canonicalMatches.length > 1) {
+        return canonicalMatches.map(match => match.display);
+    }
+
+    return [trimmed];
+};
+
 const formatFocusList = (values: string[]): string | null => {
     if (!values.length) return null;
-    const formatted = values.map(value => {
-        const emoji = getFocusEmoji(value);
-        return emoji ? `${emoji} ${value}` : value;
-    });
+    const formatted: string[] = [];
+    const seen = new Set<string>();
+
+    for (const value of values) {
+        if (typeof value !== 'string') continue;
+        const expanded = expandFocusValue(value);
+
+        for (const entry of expanded) {
+            const normalized = normalizeFocusValue(entry);
+            if (!normalized || seen.has(normalized)) continue;
+            seen.add(normalized);
+
+            const emoji = getFocusEmoji(entry);
+            formatted.push(emoji ? `${emoji} ${entry}` : entry);
+        }
+    }
+
     return formatted.length ? formatted.join(', ') : null;
 };
 
