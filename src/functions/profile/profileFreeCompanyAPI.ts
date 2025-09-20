@@ -45,6 +45,7 @@ export type FreeCompanySearchResults = {
     world?: string;
     datacenter?: string;
     grandCompany?: string;
+    tag?: string;
     crest?: string;
     members?: string;
     housing?: string;
@@ -71,21 +72,23 @@ export const normalizeFocusValue = (value: string) => value
     .trim();
 
 const parseIconList = (raw: string): string[] => {
+    const cleanedRaw = raw.replace(/<li\b[^>]*--off[^>]*>[\s\S]*?<\/li>/gi, '');
+
     const icons = Array.from(
-        raw.matchAll(/<(?:img|span)[^>]*(?:data-tooltip|title|alt)="([^"]+)"[^>]*>/gi)
+        cleanedRaw.matchAll(/<(?:img|span)[^>]*(?:data-tooltip|title|alt)="([^"]+)"[^>]*>/gi)
     )
         .map(match => decodeHTML(match[1] ?? ''))
         .filter(Boolean);
 
-    const listItems = Array.from(raw.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi))
+    const listItems = Array.from(cleanedRaw.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi))
         .map(match => decodeHTML(match[1] ?? ''))
         .filter(Boolean);
 
-    const paragraphItems = Array.from(raw.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi))
+    const paragraphItems = Array.from(cleanedRaw.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi))
         .map(match => decodeHTML(match[1] ?? ''))
         .filter(Boolean);
 
-    const textContent = decodeHTML(raw)
+    const textContent = decodeHTML(cleanedRaw)
         .split(/[•,\n]/)
         .map(item => item.trim())
         .filter(Boolean);
@@ -97,6 +100,26 @@ const parseIconList = (raw: string): string[] => {
         if (!unique.has(key)) unique.set(key, val);
     }
     return Array.from(unique.values());
+};
+
+const parseNameAndTag = (value: string): { name: string; tag?: string } => {
+    const trimmed = value.trim();
+    if (!trimmed) return { name: '' };
+
+    const fancyMatch = /[«»]/.test(trimmed)
+        ? /«([^»]+)»/.exec(trimmed)
+        : null;
+    const angleMatch = !fancyMatch && /<([^>]+)>/.exec(trimmed);
+    const match = fancyMatch ?? angleMatch;
+
+    if (!match) return { name: trimmed };
+
+    const tag = match[1]?.trim();
+    const name = trimmed.replace(match[0], '').replace(/\s+/g, ' ').trim();
+
+    const result: { name: string; tag?: string } = { name: name || trimmed };
+    if (tag && tag.trim()) result.tag = tag.trim();
+    return result;
 };
 
 const normalizeLabelValue = (value: string) => decodeHTML(value)
@@ -153,7 +176,13 @@ const extractHeadingDetail = (html: string, label: string): { raw: string; text:
         const contentStart = match.index + match[0].length;
         const remainder = html.slice(contentStart);
         const nextHeadingMatch = /<h3[^>]*class="[^"]*heading--lead[^"]*"[^>]*>/i.exec(remainder);
-        const endIndex = nextHeadingMatch ? nextHeadingMatch.index : remainder.length;
+        let endIndex = nextHeadingMatch ? nextHeadingMatch.index : remainder.length;
+
+        const sectionCloseIndex = remainder.search(/<\/section>/i);
+        if (sectionCloseIndex !== -1) {
+            endIndex = Math.min(endIndex, sectionCloseIndex);
+        }
+
         const raw = remainder.slice(0, endIndex).trim();
         if (!raw) return null;
         return { raw, text: decodeHTML(raw) };
@@ -238,15 +267,38 @@ const parseHeaderInfo = (html: string, profile: FreeCompanyProfile) => {
     const nameMatch = /<p[^>]*class="freecompany__text__name"[^>]*>([\s\S]*?)<\/p>/i.exec(html)
         ?? /<h1[^>]*class="freecompany__header__name"[^>]*>([\s\S]*?)<\/h1>/i.exec(html);
     if (nameMatch) {
-        const name = decodeHTML(nameMatch[1] ?? '');
-        if (name) profile.name = name;
+        const rawName = decodeHTML(nameMatch[1] ?? '');
+        if (rawName) {
+            const { name, tag } = parseNameAndTag(rawName);
+            if (name) {
+                profile.name = name;
+            } else {
+                profile.name = rawName;
+            }
+            if (tag && !profile.tag) profile.tag = tag;
+        }
     }
 
-    const gcMatch = /<p[^>]*class="freecompany__text__tag"[^>]*>([\s\S]*?)<\/p>/i.exec(html)
-        ?? /<p[^>]*class="freecompany__text__affiliation"[^>]*>([\s\S]*?)<\/p>/i.exec(html);
-    if (gcMatch) {
-        const gc = decodeHTML(gcMatch[1] ?? '');
+    const affiliationMatch = /<p[^>]*class="freecompany__text__affiliation"[^>]*>([\s\S]*?)<\/p>/i.exec(html)
+        ?? /<p[^>]*class="freecompany__text__grandcompany"[^>]*>([\s\S]*?)<\/p>/i.exec(html);
+    if (affiliationMatch) {
+        const gc = decodeHTML(affiliationMatch[1] ?? '');
         if (gc) profile.grandCompany = gc;
+    }
+
+    const tagMatch = /<p[^>]*class="freecompany__text__tag"[^>]*>([\s\S]*?)<\/p>/i.exec(html)
+        ?? /<span[^>]*class="freecompany__header__tag"[^>]*>([\s\S]*?)<\/span>/i.exec(html);
+    if (tagMatch) {
+        const rawTag = decodeHTML(tagMatch[1] ?? '');
+        if (rawTag) {
+            const { tag } = parseNameAndTag(rawTag);
+            const normalizedTag = (tag ?? rawTag).replace(/[«»<>]/g, '').trim();
+            if (normalizedTag && !profile.tag) {
+                profile.tag = normalizedTag;
+            } else if (!profile.grandCompany) {
+                profile.grandCompany = rawTag;
+            }
+        }
     }
 
     const worldMatch = /<p[^>]*class="freecompany__text__world"[^>]*>([\s\S]*?)<\/p>/i.exec(html);
@@ -314,8 +366,11 @@ export async function searchFreeCompanies(
         const block = match[2] ?? '';
 
         const nameMatch = /<p class="entry__name">([\s\S]*?)<\/p>/i.exec(block);
-        const name = nameMatch ? decodeHTML(nameMatch[1] ?? '') : '';
-        if (!id || !name) continue;
+        const rawName = nameMatch ? decodeHTML(nameMatch[1] ?? '') : '';
+        if (!id || !rawName) continue;
+
+        const { name, tag } = parseNameAndTag(rawName);
+        if (!name) continue;
 
         const worldMatches = Array.from(block.matchAll(/<p class="entry__world">([\s\S]*?)<\/p>/gi)).map(m => decodeHTML(m[1] ?? ''));
         const grandCompany = worldMatches[0];
@@ -357,6 +412,7 @@ export async function searchFreeCompanies(
         if (world) entry.world = world;
         if (datacenter) entry.datacenter = datacenter;
         if (grandCompany) entry.grandCompany = grandCompany;
+        if (tag) entry.tag = tag;
         if (crest) entry.crest = crest;
         if (members) entry.members = members;
         if (housing) entry.housing = housing;
@@ -389,6 +445,7 @@ export async function fetchFreeCompanyProfile(
     if (base.world) profile.world = base.world;
     if (base.datacenter) profile.datacenter = base.datacenter;
     if (base.grandCompany) profile.grandCompany = base.grandCompany;
+    if (base.tag) profile.tag = base.tag;
     if (base.crest) profile.crest = base.crest;
     if (base.members) profile.members = base.members;
     if (base.housing) profile.housing = base.housing;

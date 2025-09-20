@@ -128,6 +128,69 @@ const sanitizeFieldValue = (
     return `${trimmed.slice(0, maxLength - 1)}${ELLIPSIS}`;
 };
 
+const cleanTagValue = (value?: string | null): string => {
+    if (typeof value !== 'string') return '';
+    return value.replace(/[«»<>]/g, '').replace(/\s+/g, ' ').trim();
+};
+
+const extractNameAndTag = (value?: string | null): { name: string; tag?: string } => {
+    if (typeof value !== 'string') return { name: '' };
+    const trimmed = value.trim();
+    if (!trimmed) return { name: '' };
+
+    const fancyMatch = /«([^»]+)»/.exec(trimmed);
+    const angleMatch = !fancyMatch ? /<([^>]+)>/.exec(trimmed) : null;
+    const match = fancyMatch ?? angleMatch;
+
+    if (!match) return { name: trimmed };
+
+    const tag = cleanTagValue(match[1]);
+    const name = trimmed.replace(match[0], '').replace(/\s+/g, ' ').trim();
+    const result: { name: string; tag?: string } = { name: name || trimmed };
+    if (tag) result.tag = tag;
+    return result;
+};
+
+const formatCompanyTitle = (
+    primaryName?: string | null,
+    fallbackName?: string | null,
+    tagCandidates: Array<string | null | undefined> = [],
+): string => {
+    const nameCandidates = [primaryName, fallbackName].filter(
+        (candidate): candidate is string => typeof candidate === 'string' && candidate.trim().length > 0,
+    );
+
+    let resolvedName = '';
+    let resolvedTag = '';
+
+    for (const candidate of nameCandidates) {
+        const { name, tag } = extractNameAndTag(candidate);
+        if (!resolvedName && name) resolvedName = name;
+        if (!resolvedTag && tag) resolvedTag = tag;
+        if (resolvedName && resolvedTag) break;
+    }
+
+    if (!resolvedName && nameCandidates.length) {
+        const [firstCandidate] = nameCandidates;
+        if (firstCandidate) resolvedName = firstCandidate.trim();
+    }
+
+    for (const tagCandidate of tagCandidates) {
+        const cleaned = cleanTagValue(tagCandidate);
+        if (cleaned) {
+            resolvedTag = cleaned;
+            break;
+        }
+    }
+
+    if (resolvedTag) {
+        if (resolvedName) return `${resolvedName} <${resolvedTag}>`;
+        return `<${resolvedTag}>`;
+    }
+
+    return resolvedName || 'Free Company';
+};
+
 type CompanyAutocompletePayload = {
     id: string;
     name?: string;
@@ -315,9 +378,15 @@ const sub: Sub = {
                 selectedProfile.seekingList.length ? `**Seeking:** ${selectedProfile.seekingList.join(', ')}` : null,
             ]);
 
+            const embedTitle = formatCompanyTitle(
+                selectedProfile.name ?? selectedEntry.name,
+                selectedEntry.name,
+                [selectedProfile.tag, selectedEntry.tag],
+            );
+
             const embed = new EmbedBuilder()
                 .setColor(Colors.Blurple)
-                .setTitle(selectedProfile.name || selectedEntry.name)
+                .setTitle(embedTitle)
                 .setURL(`https://eu.finalfantasyxiv.com/lodestone/freecompany/${selectedProfile.id}/`)
                 .addFields(
                     { name: 'Company Slogan', value: sanitizeFieldValue(selectedProfile.slogan), inline: false },
