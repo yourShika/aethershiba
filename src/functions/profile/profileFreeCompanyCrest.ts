@@ -1,34 +1,154 @@
 import { AttachmentBuilder } from "discord.js";
 import { createHash } from "node:crypto";
-import sharp, { type OverlayOptions } from 'sharp';
+import sharp from 'sharp';
 
 import { logger } from "../../lib/logger";
 
-const USER_AGENT = 'Mozilla/5.0 (compatible; AetherShiba/1.0)';
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36';
+const LODESTONE_ORIGIN = 'https://eu.finalfantasyxiv.com';
+const LODESTONE_REFERER = `${LODESTONE_ORIGIN}/lodestone/`;
+const CREST_FETCH_HEADERS: Record<string, string> = {
+    'user-agent': USER_AGENT,
+    accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+    'accept-language': 'en-US,en;q=0.9',
+    'accept-encoding': 'identity',
+    origin: LODESTONE_ORIGIN,
+    referer: LODESTONE_REFERER,
+    pragma: 'no-cache',
+    'cache-control': 'no-cache',
+    'sec-fetch-mode': 'no-cors',
+    'sec-fetch-site': 'same-site',
+    'sec-fetch-dest': 'image',
+};
 
 const bufferCache = new Map<string, Buffer>();
 const inFlight = new Map<string, Promise<Buffer | null>>();
+
+type SharpOverlayOptions = {
+    input: Buffer;
+    left?: number;
+    top?: number;
+};
 
 const sanitizeLayers = (layers: readonly string[]): string[] => layers
     .map(layer => (typeof layer === 'string' ? layer.trim() : ''))
     .filter((layer): layer is string => layer.length > 0);
 
+const DEFAULT_CANVAS_SIZE = 64;
+
 const getCacheKey = (layers: readonly string[]) => createHash('sha1').update(layers.join('|')).digest('hex');
 
-async function fetchLayer(url: string): Promise<Buffer | null> {
+const isLikelyImageContentType = (contentType?: string | null): boolean => {
+    if (!contentType) return true;
+    const normalized = contentType.toLowerCase();
+    if (normalized.startsWith('image/')) return true;
+    if (normalized.includes('octet-stream')) return true;
+    return false;
+};
+
+const normalizeProtocolRelativeUrl = (value: string): string => {
+    if (value.startsWith('//')) return `https:${value}`;
+    return value;
+};
+
+const ensureAbsoluteUrl = (value: string): string => {
+    const normalized = normalizeProtocolRelativeUrl(value);
+    if (/^https?:\/\//i.test(normalized)) {
+        return normalized.startsWith('http://')
+            ? `https://${normalized.slice('http://'.length)}`
+            : normalized;
+    }
+
+    if (/^[a-z0-9.-]+\//i.test(normalized)) {
+        return `https://${normalized}`;
+    }
+
+    return normalized;
+};
+
+const appendLdsPrefixVariant = (url: URL): string | null => {
+    if (!url.pathname.startsWith('/lds/')) {
+        const prefixed = new URL(url.toString());
+        prefixed.pathname = `/lds${prefixed.pathname.startsWith('/') ? prefixed.pathname : `/${prefixed.pathname}`}`;
+        return prefixed.toString();
+    }
+    return null;
+};
+
+const createCrestUrlVariants = (rawUrl: string): string[] => {
+    const variants = new Set<string>();
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return [];
+
+    const normalized = ensureAbsoluteUrl(trimmed);
     try {
-        const res = await fetch(url, { headers: { 'user-agent': USER_AGENT }});
-        if (!res.ok) {
-            logger.debug(`Failed to fetch crest layer ${url}: ${res.status} ${res.statusText}`);
-            return null;
+        const url = (() => {
+            try {
+                return new URL(normalized);
+            } catch {
+                return new URL(normalized, LODESTONE_ORIGIN);
+            }
+        })();
+        variants.add(url.toString());
+
+        const alternativeHosts: string[] = [];
+        if (url.hostname === 'img2.finalfantasyxiv.com') {
+            alternativeHosts.push('img.finalfantasyxiv.com', 'lds-img.finalfantasyxiv.com');
+        } else if (url.hostname === 'img.finalfantasyxiv.com') {
+            alternativeHosts.push('img2.finalfantasyxiv.com', 'lds-img.finalfantasyxiv.com');
+        } else if (url.hostname === 'lds-img.finalfantasyxiv.com') {
+            alternativeHosts.push('img.finalfantasyxiv.com', 'img2.finalfantasyxiv.com');
         }
 
-        const arrayBuffer = await res.arrayBuffer();
-        return Buffer.from(arrayBuffer);
-    } catch (error) {
-        logger.debug(`Error fetching crest layer ${url}`, error);
-        return null;
+        for (const host of alternativeHosts) {
+            try {
+                const altUrl = new URL(url.toString());
+                altUrl.hostname = host;
+                variants.add(altUrl.toString());
+                const prefixed = appendLdsPrefixVariant(altUrl);
+                if (prefixed) variants.add(prefixed);
+            } catch {
+                // ignore individual alternate host failures
+            }
+        }
+
+        const prefixed = appendLdsPrefixVariant(url);
+        if (prefixed) variants.add(prefixed);
+    } catch {
+        // ignore invalid URLs
     }
+
+    return Array.from(variants);
+};
+
+async function fetchLayer(url: string): Promise<Buffer | null> {
+    const candidates = createCrestUrlVariants(url);
+    for (const candidate of candidates) {
+        try {
+            const res = await fetch(candidate, { headers: CREST_FETCH_HEADERS });
+            if (!res.ok) {
+                logger.debug(`Failed to fetch crest layer ${candidate}: ${res.status} ${res.statusText}`);
+                continue;
+            }
+
+            const contentType = res.headers.get('content-type');
+            if (!isLikelyImageContentType(contentType)) {
+                logger.debug(`Skipping crest layer ${candidate} due to unsupported content-type: ${contentType}`);
+                continue;
+            }
+
+            const arrayBuffer = await res.arrayBuffer();
+            if (!arrayBuffer.byteLength) {
+                logger.debug(`Received empty crest layer ${candidate}`);
+                continue;
+            }
+            return Buffer.from(arrayBuffer);
+        } catch (error) {
+            logger.debug(`Error fetching crest layer ${candidate}`, error);
+        }
+    }
+
+    return null;
 }
 
 async function readMetadata(buffer: Buffer): Promise<{ width?: number; height?: number }> {
@@ -58,38 +178,50 @@ async function composeCrest(layers: string[]): Promise<Buffer | null> {
 
     if (!pairs.length) return null;
 
-    const basePair = pairs.find(pair => pair.index === 0) ?? pairs[0];
-    if (!basePair) return null;
+    const layersWithMeta = await Promise.all(pairs.map(async pair => {
+        const metadata = await readMetadata(pair.buffer);
+        return {
+            ...pair,
+            width: metadata.width,
+            height: metadata.height,
+        };
+    }));
 
-    const baseBuffer = basePair.buffer;
+    const sortedLayers = [...layersWithMeta].sort((a, b) => a.index - b.index);
 
-    const overlayPairs = pairs
-        .filter(pair => pair.index !== basePair.index)
-        .sort((a, b) => a.index - b.index);
+    const maxWidth = sortedLayers.reduce((max, layer) => {
+        return Number.isFinite(layer.width) && (layer.width ?? 0) > max ? (layer.width ?? 0) : max;
+    }, 0);
+    const maxHeight = sortedLayers.reduce((max, layer) => {
+        return Number.isFinite(layer.height) && (layer.height ?? 0) > max ? (layer.height ?? 0) : max;
+    }, 0);
 
-    const baseMeta = await readMetadata(baseBuffer);
-    const baseWidth = baseMeta.width;
-    const baseHeight = baseMeta.height;
+    const targetWidth = maxWidth > 0 ? maxWidth : DEFAULT_CANVAS_SIZE;
+    const targetHeight = maxHeight > 0 ? maxHeight : (maxWidth > 0 ? maxWidth : DEFAULT_CANVAS_SIZE);
 
-    const composites: OverlayOptions[] = [];
+    const composites: SharpOverlayOptions[] = [];
 
-    for (const pair of overlayPairs) {
-        const overlayMeta = await readMetadata(pair.buffer);
-        const overlayWidth = overlayMeta.width ?? baseWidth;
-        const overlayHeight = overlayMeta.height ?? baseHeight;
-        const left = normalizeOffset(baseWidth, overlayWidth);
-        const top = normalizeOffset(baseHeight, overlayHeight);
+    for (const layer of sortedLayers) {
+        const overlayWidth = layer.width ?? targetWidth;
+        const overlayHeight = layer.height ?? targetHeight;
+        const left = normalizeOffset(targetWidth, overlayWidth);
+        const top = normalizeOffset(targetHeight, overlayHeight);
 
-        composites.push({ input: pair.buffer, left, top });
-    }
-
-    let pipeline = sharp(baseBuffer).ensureAlpha();
-    if (composites.length) {
-        pipeline = pipeline.composite(composites);
+        composites.push({ input: layer.buffer, left, top });
     }
 
     try {
-        return await pipeline.png().toBuffer();
+        return await sharp({
+            create: {
+                width: targetWidth,
+                height: targetHeight,
+                channels: 4,
+                background: { r: 0, g: 0, b: 0, alpha: 0 },
+            },
+        })
+            .composite(composites)
+            .png()
+            .toBuffer();
     } catch (error) {
         logger.debug('Failed to compose crest image', error);
         return null;
