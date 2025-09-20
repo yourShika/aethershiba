@@ -58,8 +58,6 @@ export async function refreshHousing(client: Client, guildID: string) {
   return threadManager.run(
     'housing:refresh',
     async () => {
-      const startedAt = Date.now();
-      logger.info(`[🏠Housing][${guildID}] Refresh started for the Server`);
 
   // ---------------------------------------------------    
   // Load & validate configuration
@@ -130,13 +128,8 @@ export async function refreshHousing(client: Client, guildID: string) {
   rec.channelId = hc.channelId;
   store[guildID] = rec;
 
-  // If this guild has no stored messages, they probably didn't run /housing setup yet.
-  if (Object.keys(rec.messages).length === 0) {
-    logger.debug(
-      `[🏠Housing][${guildID}] No stored housing messages found – run /housing setup first. Aborting refresh.`
-    );
-    return null;
-  }
+  const startedAt = Date.now();
+  logger.info(`[🏠Housing][${guildID}] Refresh started for the Server`);
 
   // ---------------------------------------------------
   // Read existing threads, dedupe by name

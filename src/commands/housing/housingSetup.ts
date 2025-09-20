@@ -6,6 +6,8 @@
 import {
   ChannelType,
   MessageFlags,
+  DiscordAPIError,
+  RESTJSONErrorCodes,
   type ChatInputCommandInteraction,
   type ForumChannel,
 } from 'discord.js';
@@ -107,6 +109,25 @@ export default {
     // Acknowledge command (ephemeral) while we work
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
+    const safeEditReply = async (
+      options: Parameters<ChatInputCommandInteraction['editReply']>[0],
+      context: string,
+    ) => {
+      try {
+        await interaction.editReply(options);
+        return true;
+      } catch (error) {
+        if (
+          error instanceof DiscordAPIError &&
+          error.code === RESTJSONErrorCodes.InvalidWebhookToken
+        ) {
+          logger.warn(`[🏠Housing][${guildID}] ${context} - interaction token expired before the reply could be sent.`);
+          return false;
+        }
+        throw error;
+      }
+    };
+
     // Run under a lock to ensure exclusive setup per guild
     await threadManager.run(
       'housing:setup',
@@ -124,7 +145,7 @@ export default {
 
       // When no plots were found.
       if (plots.length === 0) {
-        await interaction.editReply({ content: `${NO_FREE_PLOTS}` });
+        await safeEditReply({ content: `${NO_FREE_PLOTS}` }, 'Housing setup aborted');
         return;
       }
 
@@ -227,9 +248,12 @@ export default {
       }
 
       // Final ephemeral confirmation to the invoker
-      await interaction.editReply({ 
-          content: `Posted ${total} plots across ${byThread.size} threads to <#${hc.channelId}>` 
-        });
+      await safeEditReply(
+        {
+          content: `Posted ${total} plots across ${byThread.size} threads to <#${hc.channelId}>`,
+        },
+        'Housing setup completed',
+      )
       },
       // Concurrency scope and conflicts for setup
       { guildId: guildID, blockWith: ['housing:refresh', 'housing:reset'] }

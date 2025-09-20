@@ -1,11 +1,18 @@
 // events/interactionCreate.ts
 
-import { Events, Client, MessageFlags } from 'discord.js';
+import { Events, Client, MessageFlags, DiscordAPIError, RESTJSONErrorCodes } from 'discord.js';
 import { logger } from '../lib/logger.js';
 import { commandHandler } from '../handlers/commandHandler.js';
 import { HOUSING_PREFIX } from '../const/constants.js';
 import { PROFILE_PREFIX } from '../const/constants.js';
 import { ERROR_OCCURRED, UNHANDLED_INTERACTION, UNKNOWN_ACTION } from '../const/messages.js';
+
+function isInvalidWebhookTokenError(error: unknown): error is DiscordAPIError {
+    return (
+        error instanceof DiscordAPIError &&
+        error.code === RESTJSONErrorCodes.InvalidWebhookToken
+    );
+}
 
 /**
  * Register the "interactionCreate" event handler.
@@ -58,11 +65,20 @@ export function register(client: Client) {
                         flags: MessageFlags.Ephemeral,
                     } as const;
 
-                    // If already replied or deferred, use followUp; else reply
-                    if (interaction.deferred || interaction.replied) {
-                        await interaction.followUp(reply);
-                    } else {
+                    try {
+                        // If already replied or deferred, use followUp; else reply
+                        if (interaction.deferred || interaction.replied) {
+                            await interaction.followUp(reply);
+
+                        } else {
                         await interaction.reply(reply);
+                        }
+                    } catch (responseError) {
+                        if (isInvalidWebhookTokenError(responseError)) {
+                            logger.warn(`Interaction ${interaction.id} token expired before an unknown-action notice could be sent.`);
+                        } else {
+                            throw responseError;
+                        }
                     }
                 }
             }
@@ -71,10 +87,18 @@ export function register(client: Client) {
             logger.error('❌ Error executing command:', error);
             if (interaction.isRepliable()) {
                 const reply = { content: `${ERROR_OCCURRED}`, flags: MessageFlags.Ephemeral } as const;
-                if (interaction.deferred || interaction.replied) {
-                    await interaction.followUp(reply);
-                } else {
-                    await interaction.reply(reply);
+                try {
+                    if (interaction.deferred || interaction.replied) {
+                        await interaction.followUp(reply);
+                    } else {
+                        await interaction.reply(reply);
+                    }
+                } catch (responseError) {
+                    if (isInvalidWebhookTokenError(responseError)) {
+                        logger.warn(`Interaction ${interaction.id} token expired before an error notice could be sent.`);
+                    } else {
+                        logger.error('Failed to send error response for interaction.', responseError);
+                    }
                 }
             }
         }

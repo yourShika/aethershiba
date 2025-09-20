@@ -104,6 +104,7 @@ export type FreeCompanySearchResults = {
     grandCompany?: string;
     tag?: string;
     crest?: string;
+    crestLayers?: string[];
     members?: string;
     housing?: string;
     formed?: string;
@@ -477,15 +478,33 @@ const parseHeaderInfo = (html: string, profile: FreeCompanyProfile) => {
         : null;
 
     const crestBase = crestBaseMatch?.[1];
-    const crestCandidates = Array.from(new Set([
+    const crestLayersCandidates = [
         crestBase,
         ...crestOverlays,
-        crestFallbackImage?.[1],
-    ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)));
+    ]
+    .map(src => (typeof src === 'string' ? src.trim() : ''))
+    .filter((src): src is string => src.length > 0);
 
-    const crestCandidate = crestCandidates[0];
-    if (crestCandidate) {
-        profile.crest = crestCandidate;
+    const crestLayers = crestLayersCandidates.filter((src, index, array) => array.indexOf(src) === index);
+
+    if (!crestLayers.length) {
+        const fallback = crestFallbackImage?.[1]?.trim();
+        if (fallback && !crestLayers.includes(fallback)) {
+            crestLayers.push(fallback);
+        }
+    }
+
+    if (crestLayers.length) {
+        profile.crestLayers = [...crestLayers];
+        const [primaryCrest] = crestLayers;
+        if (primaryCrest) {
+            profile.crest = primaryCrest;
+        }
+    } else {
+        const fallback = crestFallbackImage?.[1]?.trim();
+        if (fallback) {
+            profile.crest = fallback;
+        }
     }
 };
 
@@ -533,13 +552,29 @@ export async function searchFreeCompanies(
 
         const crestMatch = /<div class="entry__freecompany__crest[\s\S]*?<img[^>]+src="([^"]+)"[^>]*class="entry__freecompany__crest__base"[\s\S]*?<div class="entry__freecompany__crest__image">([\s\S]*?)<\/div>[\s\S]*?<\/div>/i.exec(block);
         let crest: string | undefined;
+        let crestLayers: string[] | undefined;
         if (crestMatch) {
+            const baseLayer = crestMatch[1]?.trim();
             const overlayBlock = crestMatch[2] ?? '';
-            const overlayMatch = /<img[^>]+src="([^"]+)"[^>]*>/i.exec(overlayBlock);
-            crest = crestMatch[1] || overlayMatch?.[1];
+            const overlayLayers = Array.from(overlayBlock.matchAll(/<img[^>]+src="([^"]+)"[^>]*>/gi))
+                .map(match => match[1]?.trim())
+                .filter((src): src is string => Boolean(src));
+
+            const combinedLayers = [baseLayer, ...overlayLayers]
+                .filter((src): src is string => typeof src === 'string' && src.length > 0)
+                .filter((src, index, array) => array.indexOf(src) === index);
+
+            if (combinedLayers.length) {
+                crestLayers = [...combinedLayers];
+                crest = combinedLayers[0];
+            }
         } else {
             const simpleCrestMatch = /<div class="entry__freecompany__crest[\s\S]*?<img[^>]+src="([^"]+)"[^>]*>/i.exec(block);
-            crest = simpleCrestMatch ? simpleCrestMatch[1] : undefined;
+            const fallbackCrest = simpleCrestMatch?.[1]?.trim();
+            if (fallbackCrest) {
+                crest = fallbackCrest;
+                crestLayers = [fallbackCrest];
+            }
         }
 
         const membersMatch = /<li class="entry__freecompany__fc-member">([\s\S]*?)<\/li>/i.exec(block);
@@ -561,6 +596,7 @@ export async function searchFreeCompanies(
         if (grandCompany) entry.grandCompany = grandCompany;
         if (tag) entry.tag = tag;
         if (crest) entry.crest = crest;
+        if (crestLayers?.length) entry.crestLayers = crestLayers;
         if (members) entry.members = members;
         if (housing) entry.housing = housing;
         if (formed) entry.formed = formed;
@@ -594,6 +630,7 @@ export async function fetchFreeCompanyProfile(
     if (base.grandCompany) profile.grandCompany = base.grandCompany;
     if (base.tag) profile.tag = base.tag;
     if (base.crest) profile.crest = base.crest;
+    if (base.crestLayers?.length) profile.crestLayers = [...base.crestLayers];
     if (base.members) profile.members = base.members;
     if (base.housing) profile.housing = base.housing;
     if (base.formed) profile.formed = base.formed;

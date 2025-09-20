@@ -13,6 +13,7 @@ import { DATACENTERS } from '../../const/housing';
 import { fetchAllWorlds, getWorldNamesByDC } from '../../functions/housing/housingWorlds';
 import { UNABLE_ACCESS } from '../../const/messages';
 import { logger } from '../../lib/logger';
+import { buildFreeCompanyCrestAttachment } from '../../functions/profile/profileFreeCompanyCrest';
 import { fetchFreeCompanyProfile, normalizeFocusValue, searchFreeCompanies, type FreeCompanyProfile, type FreeCompanySearchResults } from '../../functions/profile/profileFreeCompanyAPI';
 
 const UA = 'Mozilla/5.0 (compatible; AetherShiba/1.0)';
@@ -590,12 +591,35 @@ const sub: Sub = {
                 embed.setDescription(descriptionParts);
             }
 
+            const crestLayers = selectedProfile.crestLayers?.length
+                ? selectedProfile.crestLayers
+                : selectedEntry.crestLayers?.length
+                    ? selectedEntry.crestLayers
+                    : null;
+
+            const crestAttachment = crestLayers
+                ? await buildFreeCompanyCrestAttachment(crestLayers)
+                : null;
+
             const crestUrl = selectedProfile.crest ?? selectedEntry.crest;
-            if (crestUrl) {
+            if (crestAttachment) {
+                const attachmentName = crestAttachment.name ?? `free-company-crest.png`;
+                if (!crestAttachment.name) {
+                    crestAttachment.setName(attachmentName);
+                }
+                embed.setThumbnail(`attachment://${attachmentName}`);
+            } else if (crestUrl) {
                 embed.setThumbnail(crestUrl);
             }
 
-            await interaction.editReply({ embeds: [embed] });
+            if (crestAttachment) {
+                await interaction.editReply({
+                    embeds: [embed],
+                    files: [crestAttachment],
+                });
+            } else {
+                await interaction.editReply({ embeds: [embed] });
+            }
         } catch(error) {
             logger.error('Failed to search Free Companies', error);
             await interaction.editReply({
