@@ -476,12 +476,12 @@ const parseHeaderInfo = (html: string, profile: FreeCompanyProfile) => {
         ? /<img[^>]+(?:data-src|src)="([^"]+)"[^>]*>/i.exec(crestFallback[1] ?? '')
         : null;
 
-    const crestCandidates = [
-        crestOverlays.at(-1),
-        crestOverlays[0],
-        crestBaseMatch?.[1],
+    const crestBase = crestBaseMatch?.[1];
+    const crestCandidates = Array.from(new Set([
+        crestBase,
+        ...crestOverlays,
         crestFallbackImage?.[1],
-    ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+    ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)));
 
     const crestCandidate = crestCandidates[0];
     if (crestCandidate) {
