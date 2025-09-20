@@ -33,15 +33,6 @@ const FOCUS_CHOICES = [
     { name: 'PvP', value: 'pvp'},
 ];
 
-const formatFocusList = (values: string[]): string | null => {
-    if (!values.length) return null;
-    const formatted = values.map(value => {
-        const emoji = getCompanyEmoji(value);
-        return emoji ? `${emoji} ${value}` : value;
-    });
-    return formatted.length ? formatted.join(', ') : null;
-};
-
 const normalize = (value: string) => value.trim().toLowerCase();
 
 const shouldIncludeSerachAll = (value: string) => {
