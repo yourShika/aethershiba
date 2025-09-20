@@ -42,6 +42,39 @@ const shouldIncludeSerachAll = (value: string) => {
 
 const isSearchAllValue = (value: string | null) => value === SEARCH_ALL_CHOICE.value;
 
+const FOCUS_EMOJI_MAP: Record<string, string> = {
+    trials: '<:Trials:1418907959592882186>',
+    guildhests: '<:Guildhests:1418907951791476816>',
+    guildhest: '<:Guildhests:1418907951791476816>',
+    casual: '<:Casual:1418907934024400956>',
+    raids: '<:Raids:1418907921663922198>',
+    raid: '<:Raids:1418907921663922198>',
+    dungeons: '<:Dungeons:1418907897944866911>',
+    dungeon: '<:Dungeons:1418907897944866911>',
+    pvp: '<:PvP:1418907884669898752>',
+    leveling: '<:Leveling:1418907839434461244>',
+    'role playing': '<:RolePlaying:1418907831611949066>',
+    roleplaying: '<:RolePlaying:1418907831611949066>',
+    roleplay: '<:RolePlaying:1418907831611949066>',
+    hardcore: '<:Hardcore:1418907822044876892>',
+};
+
+const getFocusEmoji = (value: string): string | null => {
+    const normalized = normalizeFocusValue(value);
+    if (!normalized) return null;
+    const compact = normalized.replace(/\s+/g, '');
+    return FOCUS_EMOJI_MAP[normalized] ?? FOCUS_EMOJI_MAP[compact] ?? null;
+};
+
+const formatFocusList = (values: string[]): string | null => {
+    if (!values.length) return null;
+    const formatted = values.map(value => {
+        const emoji = getFocusEmoji(value);
+        return emoji ? `${emoji} ${value}` : value;
+    });
+    return formatted.length ? formatted.join(', ') : null;
+};
+
 type CompanyAutocompletePayload = {
     id: string;
     name?: string;
@@ -220,10 +253,11 @@ const sub: Sub = {
                 selectedProfile.recruitmentDetail ?? selectedProfile.recruitment ?? selectedEntry.recruitment,
             );
 
+            const focusDisplay = formatFocusList(selectedProfile.focusList);
             const focusField = [
                 activeList.length ? `**Active:** ${activeList.join(', ')}` : null,
                 recruitmentText ? `**Recruitment:** ${recruitmentText}` : null,
-                selectedProfile.focusList.length ? `**Focus:** ${selectedProfile.focusList.join(', ')}` : null,
+                focusDisplay ? `**Focus:** ${focusDisplay}` : null,
                 selectedProfile.seekingList.length ? `**Seeking:** ${selectedProfile.seekingList.join(', ')}` : null,
             ].filter(Boolean).join('\n') || '-';
 
