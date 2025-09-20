@@ -34,6 +34,8 @@ const sanitizeLayers = (layers: readonly string[]): string[] => layers
     .map(layer => (typeof layer === 'string' ? layer.trim() : ''))
     .filter((layer): layer is string => layer.length > 0);
 
+const DEFAULT_CANVAS_SIZE = 64;
+
 const getCacheKey = (layers: readonly string[]) => createHash('sha1').update(layers.join('|')).digest('hex');
 
 const isLikelyImageContentType = (contentType?: string | null): boolean => {
@@ -49,9 +51,19 @@ const normalizeProtocolRelativeUrl = (value: string): string => {
     return value;
 };
 
-const ensureHttpsUrl = (value: string): string => {
-    if (value.startsWith('http://')) return `https://${value.slice('http://'.length)}`;
-    return value;
+const ensureAbsoluteUrl = (value: string): string => {
+    const normalized = normalizeProtocolRelativeUrl(value);
+    if (/^https?:\/\//i.test(normalized)) {
+        return normalized.startsWith('http://')
+            ? `https://${normalized.slice('http://'.length)}`
+            : normalized;
+    }
+
+    if (/^[a-z0-9.-]+\//i.test(normalized)) {
+        return `https://${normalized}`;
+    }
+
+    return normalized;
 };
 
 const appendLdsPrefixVariant = (url: URL): string | null => {
@@ -68,7 +80,7 @@ const createCrestUrlVariants = (rawUrl: string): string[] => {
     const trimmed = rawUrl.trim();
     if (!trimmed) return [];
 
-    const normalized = ensureHttpsUrl(normalizeProtocolRelativeUrl(trimmed));
+    const normalized = ensureAbsoluteUrl(trimmed);
     try {
         const url = (() => {
             try {
@@ -166,38 +178,50 @@ async function composeCrest(layers: string[]): Promise<Buffer | null> {
 
     if (!pairs.length) return null;
 
-    const basePair = pairs.find(pair => pair.index === 0) ?? pairs[0];
-    if (!basePair) return null;
+    const layersWithMeta = await Promise.all(pairs.map(async pair => {
+        const metadata = await readMetadata(pair.buffer);
+        return {
+            ...pair,
+            width: metadata.width,
+            height: metadata.height,
+        };
+    }));
 
-    const baseBuffer = basePair.buffer;
+    const sortedLayers = [...layersWithMeta].sort((a, b) => a.index - b.index);
 
-    const overlayPairs = pairs
-        .filter(pair => pair.index !== basePair.index)
-        .sort((a, b) => a.index - b.index);
+    const maxWidth = sortedLayers.reduce((max, layer) => {
+        return Number.isFinite(layer.width) && (layer.width ?? 0) > max ? (layer.width ?? 0) : max;
+    }, 0);
+    const maxHeight = sortedLayers.reduce((max, layer) => {
+        return Number.isFinite(layer.height) && (layer.height ?? 0) > max ? (layer.height ?? 0) : max;
+    }, 0);
 
-    const baseMeta = await readMetadata(baseBuffer);
-    const baseWidth = baseMeta.width;
-    const baseHeight = baseMeta.height;
+    const targetWidth = maxWidth > 0 ? maxWidth : DEFAULT_CANVAS_SIZE;
+    const targetHeight = maxHeight > 0 ? maxHeight : (maxWidth > 0 ? maxWidth : DEFAULT_CANVAS_SIZE);
 
     const composites: SharpOverlayOptions[] = [];
 
-    for (const pair of overlayPairs) {
-        const overlayMeta = await readMetadata(pair.buffer);
-        const overlayWidth = overlayMeta.width ?? baseWidth;
-        const overlayHeight = overlayMeta.height ?? baseHeight;
-        const left = normalizeOffset(baseWidth, overlayWidth);
-        const top = normalizeOffset(baseHeight, overlayHeight);
+    for (const layer of sortedLayers) {
+        const overlayWidth = layer.width ?? targetWidth;
+        const overlayHeight = layer.height ?? targetHeight;
+        const left = normalizeOffset(targetWidth, overlayWidth);
+        const top = normalizeOffset(targetHeight, overlayHeight);
 
-        composites.push({ input: pair.buffer, left, top });
-    }
-
-    let pipeline = sharp(baseBuffer).ensureAlpha();
-    if (composites.length) {
-        pipeline = pipeline.composite(composites);
+        composites.push({ input: layer.buffer, left, top });
     }
 
     try {
-        return await pipeline.png().toBuffer();
+        return await sharp({
+            create: {
+                width: targetWidth,
+                height: targetHeight,
+                channels: 4,
+                background: { r: 0, g: 0, b: 0, alpha: 0 },
+            },
+        })
+            .composite(composites)
+            .png()
+            .toBuffer();
     } catch (error) {
         logger.debug('Failed to compose crest image', error);
         return null;
