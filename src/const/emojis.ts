@@ -66,5 +66,18 @@ export const JOB_CATEGORIES: Record<string, string[]> = {
     ],
 };
 
+export const companyEmojis: Record<string, string> = {
+    trials: '<:Trials:1418907959592882186>',
+    guildhests: '<:Guildhests:1418907951791476816>',
+    casual: '<:Casual:1418907934024400956>',
+    raids: '<:Raids:1418907921663922198>',
+    dungeons: '<:Dungeons:1418907897944866911>',
+    pvp: '<:PvP:1418907884669898752>',
+    leveling: '<:Leveling:1418907839434461244>',
+    'role playing': '<:RolePlaying:1418907831611949066>',
+    hardcore: '<:Hardcore:1418907822044876892>',
+};
+
 export const getJobEmoji = (name: string) => jobEmojis[normalizeKey(name)];
 export const getCityEmoji = (name: string) => cityStateEmojis[normalizeKey(name)];
+export const getCompanyEmoji = (name: string) => companyEmojis[normalizeKey(name)];

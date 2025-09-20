@@ -14,6 +14,7 @@ import { fetchAllWorlds, getWorldNamesByDC } from '../../functions/housing/housi
 import { UNABLE_ACCESS } from '../../const/messages';
 import { logger } from '../../lib/logger';
 import { fetchFreeCompanyProfile, normalizeFocusValue, searchFreeCompanies, type FreeCompanyProfile, type FreeCompanySearchResults } from '../../functions/profile/profileFreeCompanyAPI';
+import { getCompanyEmoji } from '../../const/emojis';
 
 const UA = 'Mozilla/5.0 (compatible; AetherShiba/1.0)';
 
@@ -31,6 +32,15 @@ const FOCUS_CHOICES = [
     { name: 'Raids', value: 'raids' },
     { name: 'PvP', value: 'pvp'},
 ];
+
+const formatFocusList = (values: string[]): string | null => {
+    if (!values.length) return null;
+    const formatted = values.map(value => {
+        const emoji = getCompanyEmoji(value);
+        return emoji ? `${emoji} ${value}` : value;
+    });
+    return formatted.length ? formatted.join(', ') : null;
+};
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
@@ -119,7 +129,8 @@ const sub: Sub = {
         .addStringOption(opt =>
             opt.setName('company')
                 .setDescription('Free Company name')
-                .setRequired(true))
+                .setRequired(true)
+                .setAutocomplete(true))
         .addStringOption(opt =>
             opt.setName('recruiting_only')
                 .setDescription('Filter by recruitment status')
@@ -220,10 +231,12 @@ const sub: Sub = {
                 selectedProfile.recruitmentDetail ?? selectedProfile.recruitment ?? selectedEntry.recruitment,
             );
 
+            const focusDisplay = formatFocusList(selectedProfile.focusList);
+
             const focusField = [
                 activeList.length ? `**Active:** ${activeList.join(', ')}` : null,
                 recruitmentText ? `**Recruitment:** ${recruitmentText}` : null,
-                selectedProfile.focusList.length ? `**Focus:** ${selectedProfile.focusList.join(', ')}` : null,
+                focusDisplay ? `**Focus:** ${focusDisplay}` : null,
                 selectedProfile.seekingList.length ? `**Seeking:** ${selectedProfile.seekingList.join(', ')}` : null,
             ].filter(Boolean).join('\n') || '-';
 

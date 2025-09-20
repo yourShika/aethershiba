@@ -77,13 +77,21 @@ const parseIconList = (raw: string): string[] => {
     .map(match => decodeHTML(match[1] ?? ''))
     .filter(Boolean);
 
+    const listItems = Array.from(raw.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi))
+        .map(match => decodeHTML(match[1] ?? ''))
+        .filter(Boolean);
+
+    const paragraphItems = Array.from(raw.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi))
+        .map(match => decodeHTML(match[1] ?? ''))
+        .filter(Boolean);
+
     const textContent = decodeHTML(raw)
         .split(/[•,\n]/)
         .map(item => item.trim())
         .filter(Boolean);
 
     const unique = new Map<string, string>();
-    for (const val of [...icons, ...textContent]) {
+    for (const val of [...icons, ...listItems, ...paragraphItems, ...textContent]) {
         const key = normalizeFocusValue(val);
         if (!key) continue;
         if (!unique.has(key)) unique.set(key, val);
