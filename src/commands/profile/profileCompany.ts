@@ -75,6 +75,28 @@ const formatFocusList = (values: string[]): string | null => {
     return formatted.length ? formatted.join(', ') : null;
 };
 
+const formatSeekingList = (values: string[], fallback = 'Not specified'): string => {
+    if (!values.length) return fallback;
+
+    const unique: string[] = [];
+    const seen = new Set<string>();
+
+    for (const value of values) {
+        if (typeof value !== 'string') continue;
+        const trimmed = value.trim();
+        if (!trimmed) continue;
+
+        const normalized = normalizeFocusValue(trimmed);
+        if (!normalized) continue;
+        if (seen.has(normalized)) continue;
+        seen.add(normalized);
+        unique.push(trimmed);
+    }
+
+    if (!unique.length) return fallback;
+    return unique.join(', ');
+};
+
 const EMBED_FIELD_MAX_LENGTH = 1024;
 const EMBED_FIELD_SEPARATOR = '\n';
 const ELLIPSIS = '…';
@@ -189,6 +211,47 @@ const formatCompanyTitle = (
     }
 
     return resolvedName || 'Free Company';
+};
+
+const formatFormedValue = (value?: string | null): string | null => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const digitIndex = trimmed.search(/\d/);
+    let core = digitIndex >= 0 ? trimmed.slice(digitIndex) : trimmed;
+    core = core.replace(/^[\s:：\-–—]+/, '').trim();
+    if (!core) return trimmed;
+
+    const isoMatch = /^(\d{4})[\.\/-](\d{1,2})[\.\/-](\d{1,2})/.exec(core);
+    if (isoMatch) {
+        const year = isoMatch[1] ?? '';
+        const month = isoMatch[2] ?? '';
+        const day = isoMatch[3] ?? '';
+        if (year && month && day) {
+            const paddedDay = day.padStart(2, '0');
+            const paddedMonth = month.padStart(2, '0');
+            const paddedYear = year.padStart(4, '0');
+            return `${paddedDay}/${paddedMonth}/${paddedYear}`;
+        }
+    }
+
+    const dayFirstMatch = /^(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{2,4})/.exec(core);
+    if (dayFirstMatch) {
+        const day = dayFirstMatch[1] ?? '';
+        const month = dayFirstMatch[2] ?? '';
+        const year = dayFirstMatch[3] ?? '';
+        if (day && month && year) {
+            const paddedDay = day.padStart(2, '0');
+            const paddedMonth = month.padStart(2, '0');
+            const normalizedYear = year.length === 2
+                ? `${Number(year) >= 70 ? '19' : '20'}${year}`
+                : year.padStart(4, '0');
+            return `${paddedDay}/${paddedMonth}/${normalizedYear}`;
+        }
+    }
+
+    return core;
 };
 
 type CompanyAutocompletePayload = {
@@ -371,11 +434,12 @@ const sub: Sub = {
             );
 
             const focusDisplay = formatFocusList(selectedProfile.focusList);
+            const seekingDisplay = formatSeekingList(selectedProfile.seekingList);
             const focusField = formatEmbedFieldValue([
                 activeList.length ? `**Active:** ${activeList.join(', ')}` : null,
                 recruitmentText ? `**Recruitment:** ${recruitmentText}` : null,
                 focusDisplay ? `**Focus:** ${focusDisplay}` : null,
-                selectedProfile.seekingList.length ? `**Seeking:** ${selectedProfile.seekingList.join(', ')}` : null,
+                `**Seeking:** ${seekingDisplay}`,
             ]);
 
             const embedTitle = formatCompanyTitle(
@@ -383,6 +447,8 @@ const sub: Sub = {
                 selectedEntry.name,
                 [selectedProfile.tag, selectedEntry.tag],
             );
+
+            const formedDisplay = formatFormedValue(selectedProfile.formed ?? selectedEntry.formed);
 
             const embed = new EmbedBuilder()
                 .setColor(Colors.Blurple)
@@ -392,7 +458,7 @@ const sub: Sub = {
                     { name: 'Company Slogan', value: sanitizeFieldValue(selectedProfile.slogan), inline: false },
                     {
                         name: 'Formed',
-                        value: sanitizeFieldValue(selectedProfile.formed || selectedEntry.formed),
+                        value: sanitizeFieldValue(formedDisplay),
                         inline: true,
                     },
                     {
