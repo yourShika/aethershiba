@@ -140,12 +140,9 @@ const expandFocusValue = (value: string): string[] => {
         const single = canonicalMatches[0];
         if (!single) return [trimmed];
 
-        const alias = single.alias;
-        const compactAlias = alias.replace(/\s+/g, '');
-        if (normalized === alias || normalized === compactAlias) {
-            return [single.display];
-        }
-        return [trimmed];
+        const display = single.display.trim();
+        if (!display) return [trimmed];
+        return [display];
     }
 
     if (canonicalMatches.length > 1) {
