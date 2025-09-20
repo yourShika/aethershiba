@@ -71,7 +71,6 @@ npm run start
 <h2 id="features">🧩 Aufgaben des Bots (Feature-Liste)</h2>
 <ul>
   <li>🏠 <strong>Listing von freien Häusern</strong> auf allen Datenzentren <strong>(Implementiert)</strong></li>
-  <li>📦 <strong>Gehilfen-Verfolgung</strong> (Verkaufs-Tracking deiner Retainer inkl. Benachrichtigungen) <strong>(W.I.P)</strong></li>
   <li>📆 <strong>Daily- &amp; Weekly-Reset</strong> Benachrichtigungen, Event-Planung <strong>(W.I.P)</strong></li>
   <li>🔔 <strong>Marktbrett-Preisalarm</strong> (Auto-Alerts bei Zielpreis/Preisschwankung) <strong>(W.I.P)</strong></li>
   <li>💹 <strong>Marktbrett-Deals</strong> (30 günstige Kauf/teurer Verkauf-Kandidaten zwischen Welten) <strong>(W.I.P)</strong></li>
