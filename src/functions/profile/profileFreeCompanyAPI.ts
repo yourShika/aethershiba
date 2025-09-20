@@ -6,18 +6,75 @@ const UA = 'Mozilla/5.0 (compatible; AetherShiba/1.0)';
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const decodeHTML = (input: string) => input
-    .replace(/<br\s*\/?/gi, '\n')
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/\s+/g, ' ')
-    .trim();
+const decodeHTML = (input: string) => {
+    const withNumericEntities = input
+        .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
+            try {
+                return String.fromCodePoint(parseInt(hex, 16));
+            } catch {
+                return '';
+            }
+        })
+        .replace(/&#(\d+);/g, (_, dec) => {
+            try {
+                return String.fromCodePoint(Number(dec));
+            } catch {
+                return '';
+            }
+        });
+
+    return withNumericEntities
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&laquo;/gi, '«')
+        .replace(/&raquo;/gi, '»')
+        .replace(/&ldquo;/gi, '“')
+        .replace(/&rdquo;/gi, '”')
+        .replace(/&lsquo;/gi, '‘')
+        .replace(/&rsquo;/gi, '’')
+        .replace(/<br\s*\/?/gi, '\n')
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<[^>]*>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+};
+
+const NOT_SPECIFIED_KEYWORDS = [
+    'notspecified',
+    'notapplicable',
+    'keineangabe',
+    'keineauswahl',
+    'keinefestlegung',
+    'nichtfestgelegt',
+    'nonspecificato',
+    'nessunapreferenza',
+    'nondefini',
+    'nondefinie',
+    'nonindique',
+    'nonprecise',
+    'nonprecisee',
+    'nonspecifie',
+    'nonspecifiee',
+    'noespecificado',
+    'noespecificada',
+    'sinespecificar',
+    'sinespecificacion',
+    'naoespecificado',
+    'naoespecificada',
+    'naoindicado',
+    'naoindicada',
+    'noneindicated',
+    'notindicated',
+];
+
+const NOT_SPECIFIED_REGEX = [/(?:未指定|未設定|指定なし)/u];
+
+const MAX_ICON_ENTRY_LENGTH = 60;
+const MAX_ICON_LIST_SIZE = 20;
 
 async function fetchText(url: string): Promise<string | null> {
     try {
@@ -72,6 +129,23 @@ export const normalizeFocusValue = (value: string) => value
     .trim();
 
 const parseIconList = (raw: string): string[] => {
+    if (!raw) return [];
+
+    const normalizedRaw = normalizeFocusValue(raw);
+    if (normalizedRaw) {
+        for (const keyword of NOT_SPECIFIED_KEYWORDS) {
+            if (normalizedRaw.includes(keyword)) {
+                return ['Not specified'];
+            }
+        }
+    }
+
+    for (const pattern of NOT_SPECIFIED_REGEX) {
+        if (pattern.test(raw)) {
+            return ['Not specified'];
+        }
+    }
+
     const cleanedRaw = raw.replace(/<li\b[^>]*--off[^>]*>[\s\S]*?<\/li>/gi, '');
 
     const icons = Array.from(
@@ -95,10 +169,12 @@ const parseIconList = (raw: string): string[] => {
 
     const unique = new Map<string, string>();
     for (const val of [...icons, ...listItems, ...paragraphItems, ...textContent]) {
+        if (val.length > MAX_ICON_ENTRY_LENGTH) continue;
         const key = normalizeFocusValue(val);
         if (!key) continue;
         if (!unique.has(key)) unique.set(key, val);
     }
+    if (unique.size > MAX_ICON_LIST_SIZE) return [];
     return Array.from(unique.values());
 };
 
