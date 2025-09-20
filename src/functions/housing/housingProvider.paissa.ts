@@ -188,6 +188,7 @@ export class PaissaProvider {
 
               // Skip ward 0 or expired lottery entries
               if (item.ward <= 0) continue;
+              if (item.plot <= 0) continue;
               if (item.lottery?.phaseUntil && item.lottery.phaseUntil <= now) continue;
 
               out.push(item);

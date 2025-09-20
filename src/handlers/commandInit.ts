@@ -15,7 +15,8 @@ import type { Command } from './commandHandler.js';
 import config from '../commands/config/config.js';          // /config command
 import help from '../commands/help/help.js';                // /help command
 import housing from '../commands/housing/housing.js';       // /housing command
-import profile from '../commands/profile/profile.js';
+import profile from '../commands/profile/profile.js';       // /profile command
+import admin from '../commands/admin/admin.js';             // /admin command
 
 /**
  * Array of all available commands.
@@ -24,4 +25,4 @@ import profile from '../commands/profile/profile.js';
  *  - Also used at runtime to resolve incoming interactions
  *    to the correct command handler.
  */
-export const commands: Command[] = [config, help, housing, profile];
+export const commands: Command[] = [config, help, housing, profile, admin];
