@@ -178,6 +178,70 @@ const parseIconList = (raw: string): string[] => {
     return Array.from(unique.values());
 };
 
+const timestampToIsoDate = (timestamp: number): string | null => {
+    if (!Number.isFinite(timestamp)) return null;
+
+    const date = new Date(timestamp * 1000);
+    if (Number.isNaN(date.getTime())) return null;
+
+    const year = String(date.getUTCFullYear()).padStart(4, '0');
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const parseFormedDetail = (detail: { raw: string; text: string }): string | null => {
+    const textValue = detail.text?.trim();
+    if (textValue) return textValue;
+
+    const timestampMatch = /ldst_strftime\(\s*(\d+)\s*,/i.exec(detail.raw)
+        ?? /data-js-datetime-value="(\d+)"/i.exec(detail.raw);
+    const timestamp = timestampMatch?.[1] ? Number(timestampMatch[1]) : null;
+
+    if (timestamp !== null) {
+        const iso = timestampToIsoDate(timestamp);
+        if (iso) return iso;
+    }
+
+    const fallback = decodeHTML(detail.raw);
+    return fallback || null;
+};
+
+const extractFormedDateFromHtml = (html: string): string | null => {
+    const formedSectionMatch = /<h3[^>]*class="[^"]*heading--lead[^"]*"[^>]*>[\s\S]*?Formed[\s\S]*?<\/h3>([\s\S]*?)(?=<h3[^>]*class="[^"]*heading--lead[^"]*"[^>]*>|<\/section>)/i.exec(html);
+    const sections = [formedSectionMatch?.[1], html];
+
+    for (const section of sections) {
+        if (!section) continue;
+
+        const timestampMatches = Array.from(section.matchAll(/ldst_strftime\(\s*(\d+)\s*,/gi));
+        for (const match of timestampMatches) {
+            const iso = match?.[1] ? timestampToIsoDate(Number(match[1])) : null;
+            if (iso) return iso;
+        }
+
+        const dataValueMatches = Array.from(section.matchAll(/data-js-datetime-value="(\d+)"/gi));
+        for (const match of dataValueMatches) {
+            const iso = match?.[1] ? timestampToIsoDate(Number(match[1])) : null;
+            if (iso) return iso;
+        }
+
+        const spanMatch = /<span[^>]+id="datetime-[^"]+"[^>]*>([\s\S]*?)<\/span>/i.exec(section);
+        if (spanMatch) {
+            const spanText = decodeHTML(spanMatch[1] ?? '').trim();
+            if (spanText && /\d/.test(spanText)) return spanText;
+        }
+
+        const decoded = decodeHTML(section);
+        if (decoded) {
+            const dateMatch = /(\d{4}[.\/-]\d{1,2}[.\/-]\d{1,2}|\d{1,2}[.\/]\d{1,2}[.\/]\d{2,4})/.exec(decoded);
+            if (dateMatch?.[1]) return dateMatch[1];
+        }
+    }
+
+    return null;
+};
+
 const parseNameAndTag = (value: string): { name: string; tag?: string } => {
     const trimmed = value.trim();
     if (!trimmed) return { name: '' };
@@ -397,24 +461,31 @@ const parseHeaderInfo = (html: string, profile: FreeCompanyProfile) => {
         }
     }
 
-    const crestBaseMatch = /<img[^>]+src="([^"]+)"[^>]*class="[^"]*freecompany__crest__base[^"]*"[^>]*>/i.exec(html);
-    if (crestBaseMatch?.[1]) {
-        profile.crest = crestBaseMatch[1];
-    }
+    const crestBlock = /<div[^>]*class="freecompany__crest__image"[^>]*>([\s\S]*?)<\/div>/i.exec(html);
+    const crestOverlays = crestBlock
+        ? Array.from(
+            crestBlock[1]?.matchAll(/<img[^>]+(?:data-src|src)="([^"]+)"[^>]*>/gi) ?? [],
+        )
+            .map(match => match[1])
+            .filter((src): src is string => Boolean(src))
+        : [];
 
-    if (!profile.crest) {
-        const crestBlock = /<div[^>]*class="freecompany__crest__image"[^>]*>([\s\S]*?)<\/div>/i.exec(html);
-        if (crestBlock) {
-            const images = Array.from(crestBlock[1]?.matchAll(/<img[^>]+src="([^"]+)"[^>]*>/gi) ?? []);
-            const crest = images.at(-1)?.[1] ?? images[0]?.[1];
-            if (crest) profile.crest = crest;
-        }
-    }
+    const crestBaseMatch = /<img[^>]+(?:data-src|src)="([^"]+)"[^>]*class="[^"]*freecompany__crest__base[^"]*"[^>]*>/i.exec(html);
+    const crestFallback = /<div[^>]*class="freecompany__crest"[^>]*>([\s\S]*?)<\/div>/i.exec(html);
+    const crestFallbackImage = crestFallback
+        ? /<img[^>]+(?:data-src|src)="([^"]+)"[^>]*>/i.exec(crestFallback[1] ?? '')
+        : null;
 
-    if (!profile.crest) {
-        const crestFallback = /<div[^>]*class="freecompany__crest"[^>]*>([\s\S]*?)<\/div>/i.exec(html);
-        const crest = crestFallback ? /<img[^>]+src="([^"]+)"[^>]*>/i.exec(crestFallback[1] ?? '') : null;
-        if (crest?.[1]) profile.crest = crest[1];
+    const crestBase = crestBaseMatch?.[1];
+    const crestCandidates = Array.from(new Set([
+        crestBase,
+        ...crestOverlays,
+        crestFallbackImage?.[1],
+    ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)));
+
+    const crestCandidate = crestCandidates[0];
+    if (crestCandidate) {
+        profile.crest = crestCandidate;
     }
 };
 
@@ -539,7 +610,15 @@ export async function fetchFreeCompanyProfile(
     if (!profile.slogan && sloganMatch) profile.slogan = decodeHTML(sloganMatch[1] ?? '');
 
     const formedDetail = extractDetail(html, 'Formed');
-    if (formedDetail?.text) profile.formed = formedDetail.text;
+    if (formedDetail) {
+        const formedValue = parseFormedDetail(formedDetail);
+        if (formedValue) profile.formed = formedValue;
+    }
+
+    if (!profile.formed || !/\d/.test(profile.formed)) {
+        const fallbackFormed = extractFormedDateFromHtml(html);
+        if (fallbackFormed) profile.formed = fallbackFormed;
+    }
 
     const membersDetail = extractDetail(html, 'Active Members');
     if (membersDetail?.text) profile.members = membersDetail.text;
