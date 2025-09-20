@@ -14,7 +14,6 @@ import { fetchAllWorlds, getWorldNamesByDC } from '../../functions/housing/housi
 import { UNABLE_ACCESS } from '../../const/messages';
 import { logger } from '../../lib/logger';
 import { fetchFreeCompanyProfile, normalizeFocusValue, searchFreeCompanies, type FreeCompanyProfile, type FreeCompanySearchResults } from '../../functions/profile/profileFreeCompanyAPI';
-import { getCompanyEmoji } from '../../const/emojis';
 
 const UA = 'Mozilla/5.0 (compatible; AetherShiba/1.0)';
 
@@ -74,6 +73,59 @@ const formatFocusList = (values: string[]): string | null => {
         return emoji ? `${emoji} ${value}` : value;
     });
     return formatted.length ? formatted.join(', ') : null;
+};
+
+const EMBED_FIELD_MAX_LENGTH = 1024;
+const EMBED_FIELD_SEPARATOR = '\n';
+const ELLIPSIS = '…';
+
+const formatEmbedFieldValue = (
+    parts: Array<string | null | undefined>,
+    fallback = '-',
+    maxLength = EMBED_FIELD_MAX_LENGTH,
+): string => {
+    const filtered = parts
+        .map(part => (typeof part === 'string' ? part.trim() : ''))
+        .filter((part): part is string => part.length > 0);
+
+    if (!filtered.length) return fallback;
+
+    const result: string[] = [];
+    let currentLength = 0;
+
+    for (const part of filtered) {
+        const prefixLength = result.length ? EMBED_FIELD_SEPARATOR.length : 0;
+        if (currentLength + prefixLength >= maxLength) break;
+
+        const available = maxLength - currentLength - prefixLength;
+
+        if (part.length > available) {
+            if (available <= 1) {
+                if (!result.length) return fallback;
+                result.push(ELLIPSIS);
+            } else {
+                result.push(`${part.slice(0, available - 1)}${ELLIPSIS}`);
+            }
+            break;
+        }
+
+        result.push(part);
+        currentLength += prefixLength + part.length;
+    }
+
+    return result.join(EMBED_FIELD_SEPARATOR) || fallback;
+};
+
+const sanitizeFieldValue = (
+    value?: string | null,
+    fallback = '-',
+    maxLength = EMBED_FIELD_MAX_LENGTH,
+): string => {
+    if (typeof value !== 'string') return fallback;
+    const trimmed = value.trim();
+    if (!trimmed.length) return fallback;
+    if (trimmed.length <= maxLength) return trimmed;
+    return `${trimmed.slice(0, maxLength - 1)}${ELLIPSIS}`;
 };
 
 type CompanyAutocompletePayload = {
@@ -256,26 +308,38 @@ const sub: Sub = {
             );
 
             const focusDisplay = formatFocusList(selectedProfile.focusList);
-            const focusField = [
+            const focusField = formatEmbedFieldValue([
                 activeList.length ? `**Active:** ${activeList.join(', ')}` : null,
                 recruitmentText ? `**Recruitment:** ${recruitmentText}` : null,
                 focusDisplay ? `**Focus:** ${focusDisplay}` : null,
                 selectedProfile.seekingList.length ? `**Seeking:** ${selectedProfile.seekingList.join(', ')}` : null,
-            ].filter(Boolean).join('\n') || '-';
+            ]);
 
             const embed = new EmbedBuilder()
                 .setColor(Colors.Blurple)
                 .setTitle(selectedProfile.name || selectedEntry.name)
                 .setURL(`https://eu.finalfantasyxiv.com/lodestone/freecompany/${selectedProfile.id}/`)
                 .addFields(
-                    { name: 'Company Slogan', value: selectedProfile.slogan || '-', inline: false },
-                    { name: 'Formed', value: selectedProfile.formed || selectedEntry.formed || '-', inline: true },
-                    { name: 'Active Members', value: selectedProfile.members || selectedEntry.members || '-', inline: true },
-                    { name: 'Rank', value: selectedProfile.rank || '-', inline: true },
-                    { name: 'Reputation', value: selectedProfile.reputation || '-', inline: false },
-                    { name: 'Ranking', value: selectedProfile.ranking || '-', inline: false },
-                    { name: 'Estate Profile', value: selectedProfile.estate || selectedEntry.housing || '-', inline: false },
-                    { name: 'Focus', value: focusField, inline: false },
+                    { name: 'Company Slogan', value: sanitizeFieldValue(selectedProfile.slogan), inline: false },
+                    {
+                        name: 'Formed',
+                        value: sanitizeFieldValue(selectedProfile.formed || selectedEntry.formed),
+                        inline: true,
+                    },
+                    {
+                        name: 'Active Members',
+                        value: sanitizeFieldValue(selectedProfile.members || selectedEntry.members),
+                        inline: true,
+                    },
+                    { name: 'Rank', value: sanitizeFieldValue(selectedProfile.rank), inline: true },
+                    { name: 'Reputation', value: sanitizeFieldValue(selectedProfile.reputation), inline: false },
+                    { name: 'Ranking', value: sanitizeFieldValue(selectedProfile.ranking), inline: false },
+                    {
+                        name: 'Estate Profile',
+                        value: sanitizeFieldValue(selectedProfile.estate || selectedEntry.housing),
+                        inline: false,
+                    },
+                    { name: 'Focus', value: sanitizeFieldValue(focusField), inline: false },
                 )
                 .setTimestamp();
 

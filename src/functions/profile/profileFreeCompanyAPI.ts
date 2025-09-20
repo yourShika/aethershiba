@@ -76,7 +76,7 @@ const parseIconList = (raw: string): string[] => {
     )
         .map(match => decodeHTML(match[1] ?? ''))
         .filter(Boolean);
-        
+
     const listItems = Array.from(raw.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi))
         .map(match => decodeHTML(match[1] ?? ''))
         .filter(Boolean);
