@@ -18,7 +18,7 @@ import link from './profileLink';
 import me from './profileMe';
 import inspect from './profileSearch';
 import search from './profileInspect';
-import company from './profileCompany';
+//import company from './profileCompany';
 import unlink from './profileUnlink';
 import { UNKNOWN_COMMAND } from '../../const/messages';
 
@@ -32,7 +32,7 @@ type Sub = {
 };
 
 // Add Commands as Subcommand
-const SUBS: Sub[] = [link, me, inspect, search, company, unlink];
+const SUBS: Sub[] = [link, me, inspect, search, unlink];
 
 // Profile Command and define Subcommands
 export const data = (() => {
