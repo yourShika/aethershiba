@@ -91,6 +91,13 @@ export async function add(g: string, key: string) {
     }
 }
 
+/**
+ * Remove all seen entries for a guild.
+ */
+export async function clear(g: string) {
+    await save(g, []);
+}
+
 // ---------------------------------------------------
 // Key Normalization
 // ---------------------------------------------------
