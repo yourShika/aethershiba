@@ -5,6 +5,9 @@ import { readFile, writeFile } from "fs/promises";
 import path from "path";
 import { threadManager } from "../../lib/threadManager";
 import { logger } from "../../lib/logger";
+import { clearHousingSchedulerState } from "../../functions/housing/housingScheduler.js";
+import { clearGuildSchedule } from "../../functions/housing/housingScheduleStore.js";
+import { clear as clearSeen } from "../../functions/housing/housingSaveConfig";
 import { ANOTHER_HOUSING_TASK_RUNNING, GUILD_ONLY, HOUSING_DATA_RESET, NO_MESSAGE_FOUND } from "../../const/messages";
 
 /**
@@ -66,7 +69,12 @@ export default {
                 const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
 
                 // Load the store (safe-parse; default to empty).
-                let store: Record<string, { channelId: string; threads: Record<string, string>; messages: Record<string, { threadId: string; messageId: string}> }> = {};
+                let store: Record<string, {
+                    channelId: string;
+                    threads: Record<string, string>;
+                    messages: Record<string, { threadId: string; messageId: string; hash?: string; deleteAt?: number; refreshedAt?: number }>;
+                    config?: { dataCenter: string; worlds: string[]; districts: string[] };
+                }> = {};
                 try {
                     const raw = await readFile(filePath, 'utf8');
                     store = JSON.parse(raw);
@@ -110,6 +118,12 @@ export default {
                 } catch (error) {
                     logger.error(`[🏠Housing][${guildID}] Fehler beim Schreiben von ${filePath}: ${String(error)}`);
                 }
+
+                await Promise.allSettled([
+                    clearHousingSchedulerState(guildID),
+                    clearGuildSchedule(guildID),
+                    clearSeen(guildID),
+                ]);
 
                 // Final confirmation to the invoker.
                 await interaction.editReply({ content: `${HOUSING_DATA_RESET}` });

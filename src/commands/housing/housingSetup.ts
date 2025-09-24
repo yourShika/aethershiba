@@ -13,7 +13,7 @@ import {
 } from 'discord.js';
 import { configManager } from '../../handlers/configHandler.js';
 import { HousingStart } from '../../schemas/housing.js';
-import { PaissaProvider } from '../../functions/housing/housingProvider.paissa.js';
+import { PaissaProvider, PaissaUnavailableError } from '../../functions/housing/housingProvider.paissa.js';
 import { plotEmbed } from '../../embeds/housingEmbeds.js';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -21,7 +21,7 @@ import type { Plot } from '../../functions/housing/housingProvider.paissa.js';
 import { threadManager } from '../../lib/threadManager.js';
 import { logger } from '../../lib/logger.js';
 import { plotKey, plotHash } from '../../functions/housing/housingUtils.js';
-import { ANOTHER_HOUSING_TASK_RUNNING, GUILD_ONLY, HOUSING_NEEDS_FORUM, HOUSING_REFRESH_RUNNING, NO_FREE_PLOTS, NO_HOUSING_CONFIGURED } from '../../const/messages.js';
+import { ANOTHER_HOUSING_TASK_RUNNING, GUILD_ONLY, HOUSING_NEEDS_FORUM, HOUSING_REFRESH_RUNNING, NO_FREE_PLOTS, NO_HOUSING_CONFIGURED, PAISSA_API_UNAVAILABLE } from '../../const/messages.js';
 
 // PaissaDB API 
 const provider = new PaissaProvider();
@@ -88,7 +88,12 @@ export default {
 
     // Load existing state to detect if we already have messages recorded
     const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
-    let store: Record<string, { channelId: string, threads: Record<string, string>; messages: Record<string, unknown> }> = {};
+    let store: Record<string, {
+      channelId: string,
+      threads: Record<string, string>;
+      messages: Record<string, { threadId: string; messageId: string; hash: string; deleteAt?: number; refreshedAt?: number }>;
+      config?: { dataCenter: string; worlds: string[]; districts: string[] };
+    }> = {};
     try {
       const raw = await readFile(filePath, 'utf8');
       store = JSON.parse(raw);
@@ -137,10 +142,30 @@ export default {
         // ---------------------------------------------------
         const plots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
 
-        // Fetch all plots for each configured world
-        for (const world of hc.worlds) {
-          const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
-          plots.push(...p);
+        const worldResults = await Promise.allSettled(
+          hc.worlds.map((world) => provider.fetchFreePlots(hc.dataCenter, world, hc.districts))
+        );
+
+        let apiDown = false;
+        for (const res of worldResults) {
+          if (res.status === 'fulfilled') {
+            plots.push(...res.value);
+            continue;
+          }
+
+          const reason = res.reason;
+          if (reason instanceof PaissaUnavailableError) {
+            apiDown = true;
+            logger.warn(`[🏠Housing][${guildID}] Paissa API unavailable during setup: ${reason.status ?? 'network error'}`);
+            break;
+          }
+
+          logger.error(`[🏠Housing][${guildID}] Failed to fetch plots: ${String(reason)}`);
+        }
+
+        if (apiDown) {
+          await safeEditReply({ content: `${PAISSA_API_UNAVAILABLE}` }, 'Paissa API unavailable');
+          return;
         }
 
       // When no plots were found.
@@ -171,11 +196,13 @@ export default {
       // ---------------------------------------------------
       // Load/Update persistent message map for this guild
       // ---------------------------------------------------
-      let st: Record<string, { 
-        channelId: string; 
-        threads: Record<string, string>; 
-        messages: Record<string, 
-        { threadId: string; messageId: string; hash: string; deleteAt?: number }> }> = {};
+      let st: Record<string, {
+        channelId: string;
+        threads: Record<string, string>;
+        messages: Record<string,
+        { threadId: string; messageId: string; hash: string; deleteAt?: number; refreshedAt?: number }>;
+        config?: { dataCenter: string; worlds: string[]; districts: string[] };
+      }> = {};
       try {
         const raw = await readFile(filePath, 'utf8');
         st = JSON.parse(raw);
@@ -183,8 +210,9 @@ export default {
         st = {};
       }
 
-      const rec = st[guildID] ?? { channelId: hc.channelId, threads: {}, messages: {} };
+      const rec = st[guildID] ?? { channelId: hc.channelId, threads: {}, messages: {} as Record<string, { threadId: string; messageId: string; hash: string; deleteAt?: number; refreshedAt?: number }> };
       rec.channelId = hc.channelId;
+      rec.config = { dataCenter: hc.dataCenter, worlds: [...hc.worlds], districts: [...hc.districts] };
       st[guildID] = rec;
 
       // ---------------------------------------------------
@@ -218,6 +246,7 @@ export default {
                 threadId: thread.id,
                 messageId: starter?.id ?? '',
                 hash: plotHash(p),
+                refreshedAt: Date.now(),
                 ...(p.lottery?.phaseUntil ? { deleteAt: p.lottery.phaseUntil } : {}),
               };
             } else {
@@ -231,6 +260,7 @@ export default {
                 threadId: thread.id,
                 messageId: sent.id,
                 hash: plotHash(p),
+                refreshedAt: Date.now(),
                 ...(p.lottery?.phaseUntil ? { deleteAt: p.lottery.phaseUntil } : {}),
               };
             }

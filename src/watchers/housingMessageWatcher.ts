@@ -6,6 +6,7 @@ import { messageLink, type Client, ChannelType, type TextBasedChannel } from 'di
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { logger } from '../lib/logger';
+import { startTaskLoop } from '../lib/taskLoop.js';
 import { botConfig } from '../config';
 
 // Type definition for how messages and threads are tracked in the JSON store
@@ -14,7 +15,7 @@ type MsgRecord = {
   threads: Record<string, string>;
   messages: Record<
     string,
-    { threadId: string; messageId: string; hash?: string; deleteAt?: number }
+    { threadId: string; messageId: string; hash?: string; deleteAt?: number; refreshedAt?: number }
   >;
 };
 
@@ -37,13 +38,14 @@ export function startHousingMessageWatcher(client: Client) {
 
   logger.info(`🏠 HousingMessageWatcher gestartet (Intervall: ${intervalMs}ms)`);
 
-  // Run the check on a fixed interval
-  setInterval(async () => {
-
-    // Skip run if Discord client not ready
+  // Run the check on a jittered interval to avoid synchronized spikes
+  startTaskLoop(async () => {
     if (!client.isReady()) return;
+    if (isTickRunning) {
+      logger.debug('Watcher tick skipped because a previous tick is still running.');
+      return;
+    }
 
-    // Make Tick true and get the Date from Starting
     isTickRunning = true;
     const startedAt = Date.now();
 
@@ -184,9 +186,8 @@ export function startHousingMessageWatcher(client: Client) {
       logger.error('Unerwarteter Fehler im HousingMessageWatcher-Tick:', err);
     } finally {
       const dur = Date.now() - startedAt;
-      // Debug log for timing and set Tick to false as it finished
       logger.debug(`Watcher-Tick beendet (Dauer ${dur}ms, geprüft=${checked}, entfernt=${removed}, geändert=${changed})`);
       isTickRunning = false;
     }
-  }, intervalMs);
+  }, { intervalMs, jitterRatio: 0.1, immediate: true });
 }

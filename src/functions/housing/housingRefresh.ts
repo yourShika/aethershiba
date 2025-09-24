@@ -7,7 +7,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { logger } from '../../lib/logger.js';
 import { configManager } from '../../handlers/configHandler.js';
 import { HousingRequired } from '../../schemas/housing.js';
-import { PaissaProvider, type Plot } from './housingProvider.paissa.js';
+import { PaissaProvider, PaissaUnavailableError, type Plot } from './housingProvider.paissa.js';
 import { plotEmbed } from '../../embeds/housingEmbeds.js';
 import { threadManager } from '../../lib/threadManager.js';
 import { plotKey, plotHash } from './housingUtils.js';
@@ -21,13 +21,19 @@ import { plotKey, plotHash } from './housingUtils.js';
  * - threads: map of "Thread Title" → threadId
  * - messages: map of plotKey → message metadata
  */
+type StoredMessage = {
+  threadId: string;
+  messageId: string;
+  hash?: string;
+  deleteAt?: number;
+  refreshedAt?: number;
+};
+
 type MsgRecord = {
   channelId: string;
   threads: Record<string, string>;
-  messages: Record<
-    string,
-    { threadId: string; messageId: string; hash?: string; deleteAt?: number }
-  >;
+  messages: Record<string, StoredMessage>;
+  config?: { dataCenter: string; worlds: string[]; districts: string[] };
 };
 
 // PaissaDB API and file path for the JSON file
@@ -67,7 +73,7 @@ export async function refreshHousing(client: Client, guildID: string) {
     return null;
   });
   if (!config) {
-    return { added: 0, removed: 0, updated: 0 };
+    return null;
   }
 
   const h = (config['housing'] as any) ?? null;
@@ -77,7 +83,7 @@ export async function refreshHousing(client: Client, guildID: string) {
       `[🏠Housing][${guildID}] Housing-Config invalid (safeParse). Abbruch.`,
       (ok as any).error?.issues ?? undefined
     );
-    return { added: 0, removed: 0, updated: 0 };
+    return null;
   }
 
   const hc = ok.data;
@@ -91,16 +97,24 @@ export async function refreshHousing(client: Client, guildID: string) {
   // ---------------------------------------------------
   // Resolve target channel and ensure it is a forum
   // ---------------------------------------------------
-  const ch = await client.channels.fetch(hc.channelId).catch((e) => {
-    logger.debug(`[🏠Housing][${guildID}] Channel fetch fehlgeschlagen (channelId=${hc.channelId}): ${String(e)}`);
-    return null;
-  });
+  const channelCache = new Map<string, any>();
+  const fetchChannelCached = async (id: string, context: string) => {
+    if (channelCache.has(id)) return channelCache.get(id);
+    const channel = await client.channels.fetch(id).catch((e) => {
+      logger.debug(`[🏠Housing][${guildID}] ${context}: ${String(e)}`);
+      return null;
+    });
+    channelCache.set(id, channel);
+    return channel;
+  };
+
+  const ch = await fetchChannelCached(hc.channelId, `Channel fetch fehlgeschlagen (channelId=${hc.channelId})`);
   if (!ch) {
-    return { added: 0, removed: 0, updated: 0 };
+    return null;
   }
   if (ch.type !== ChannelType.GuildForum) {
     logger.debug(`[🏠Housing][${guildID}] Channel ist kein GuildForum (type=${ch.type}) → abort`);
-    return { added: 0, removed: 0, updated: 0 };
+    return null;
   }
   const forum = ch as ForumChannel;
 
@@ -127,6 +141,33 @@ export async function refreshHousing(client: Client, guildID: string) {
     };
   rec.channelId = hc.channelId;
   store[guildID] = rec;
+
+  let storeChanged = false;
+  const normalizedConfig = {
+    dataCenter: hc.dataCenter,
+    worlds: [...hc.worlds].sort(),
+    districts: [...hc.districts].sort(),
+  };
+  const prevConfig = rec.config
+    ? {
+        dataCenter: rec.config.dataCenter,
+        worlds: [...rec.config.worlds].sort(),
+        districts: [...rec.config.districts].sort(),
+      }
+    : null;
+  if (
+    !prevConfig ||
+    prevConfig.dataCenter !== normalizedConfig.dataCenter ||
+    prevConfig.worlds.join('|') !== normalizedConfig.worlds.join('|') ||
+    prevConfig.districts.join('|') !== normalizedConfig.districts.join('|')
+  ) {
+    rec.config = {
+      dataCenter: normalizedConfig.dataCenter,
+      worlds: [...normalizedConfig.worlds],
+      districts: [...normalizedConfig.districts],
+    };
+    storeChanged = true;
+  }
 
   const startedAt = Date.now();
   logger.info(`[🏠Housing][${guildID}] Refresh started for the Server`);
@@ -175,17 +216,35 @@ export async function refreshHousing(client: Client, guildID: string) {
 
   if (!worlds.length) {
     logger.debug(`[🏠Housing][${guildID}] Keine Worlds in der Config. Abbruch.`);
-    await writeSafe(filePath, store, guildID);
-    return { added: 0, removed, updated: 0 };
+    return null;
   }
 
-  for (const world of worlds) {
-    try {
-      const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
-      allPlots.push(...p);
-    } catch (e: any) {
-      logger.error(`[🏠Housing][${guildID}] Provider-Fehler (world=${world}): ${String(e)}`);
+  const results = await Promise.allSettled(
+    worlds.map((world) => provider.fetchFreePlots(hc.dataCenter, world, hc.districts))
+  );
+
+  let apiDown = false;
+  results.forEach((res, idx) => {
+    if (res.status === 'fulfilled') {
+      allPlots.push(...res.value);
+      return;
     }
+
+    const world = worlds[idx];
+    const reason = res.reason;
+    if (reason instanceof PaissaUnavailableError) {
+      apiDown = true;
+      logger.warn(
+        `[🏠Housing][${guildID}] Paissa API unavailable during refresh (world=${world}): ${reason.status ?? 'network error'}`
+      );
+      return;
+    }
+
+    logger.error(`[🏠Housing][${guildID}] Provider-Fehler (world=${world}): ${String(reason)}`);
+  });
+
+  if (apiDown) {
+    return null;
   }
 
   // Build quick-lookup map of the currently available plots
@@ -201,17 +260,16 @@ export async function refreshHousing(client: Client, guildID: string) {
     const plot = available.get(key);
 
     // Resolve thread (text-based channel)
-    const channel = await client.channels.fetch(info.threadId).catch((e) => {
-      logger.debug(
-        `[🏠Housing][${guildID}] Edit-Pfad: Thread fetch fehlgeschlagen (threadId=${info.threadId}): ${String(e)}`
-      );
-      return null;
-    });
+    const channel = await fetchChannelCached(
+      info.threadId,
+      `Edit-Pfad: Thread fetch fehlgeschlagen (threadId=${info.threadId})`
+    );
 
     // If thread missing or not text-based -> drop this record
     if (!channel || !('isTextBased' in channel) || !(channel as any).isTextBased()) {
       delete rec.messages[key];
       removed++;
+      storeChanged = true;
       continue;
     }
 
@@ -222,6 +280,7 @@ export async function refreshHousing(client: Client, guildID: string) {
     if (!msg) {
       delete rec.messages[key];
       removed++;
+      storeChanged = true;
       continue;
     }
 
@@ -234,6 +293,7 @@ export async function refreshHousing(client: Client, guildID: string) {
       });
       delete rec.messages[key];
       removed++;
+      storeChanged = true;
       continue;
     }
 
@@ -265,8 +325,18 @@ export async function refreshHousing(client: Client, guildID: string) {
     });
 
     // Keep deleteAt in sync with lottery phase
-    if (plot.lottery?.phaseUntil) info.deleteAt = plot.lottery.phaseUntil;
-    else delete info.deleteAt;
+    if (plot.lottery?.phaseUntil) {
+      if (info.deleteAt !== plot.lottery.phaseUntil) {
+        info.deleteAt = plot.lottery.phaseUntil;
+        storeChanged = true;
+      }
+    } else if (info.deleteAt) {
+      delete info.deleteAt;
+      storeChanged = true;
+    }
+
+    info.refreshedAt = Date.now();
+    storeChanged = true;
 
     // Update stored hash if changed
     if (hashChanged) {
@@ -306,14 +376,10 @@ export async function refreshHousing(client: Client, guildID: string) {
 
     // Try to reuse existing thread if it's still valid & text-based
     if (threadId) {
-      thread = await client.channels.fetch(threadId).catch((e) => {
-        logger.debug(
-          `[🏠Housing][${guildID}] Gespeicherten Thread nicht fetchbar (thread=${threadName}, threadId=${threadId}): ${String(
-            e
-          )}`
-        );
-        return null;
-      });
+      thread = await fetchChannelCached(
+        threadId,
+        `Gespeicherten Thread nicht fetchbar (thread=${threadName}, threadId=${threadId})`
+      );
 
       if (!(thread && 'isTextBased' in thread && (thread as any).isTextBased())) {
         logger.debug(
@@ -344,6 +410,7 @@ export async function refreshHousing(client: Client, guildID: string) {
 
       // Persist thread ID
       rec.threads[threadName] = thread.id;
+      storeChanged = true;
 
       // Track the starter message as the plot message
       const starter = await thread.fetchStarterMessage().catch(() => null);
@@ -353,8 +420,10 @@ export async function refreshHousing(client: Client, guildID: string) {
         threadId: thread.id,
         messageId: starterId,
         hash: plotHash(plot),
+        refreshedAt: Date.now(),
         ...(plot.lottery?.phaseUntil ? { deleteAt: plot.lottery.phaseUntil } : {})
       };
+      storeChanged = true;
 
       added++;
     } else {
@@ -377,8 +446,10 @@ export async function refreshHousing(client: Client, guildID: string) {
         threadId: thread.id,
         messageId: sent.id,
         hash: plotHash(plot),
+        refreshedAt: Date.now(),
         ...(plot.lottery?.phaseUntil ? { deleteAt: plot.lottery.phaseUntil } : {})
       };
+      storeChanged = true;
 
       added++;
     }
@@ -387,7 +458,9 @@ export async function refreshHousing(client: Client, guildID: string) {
   // ---------------------------------------------------
   // Persist state and log result
   // ---------------------------------------------------
-  await writeSafe(filePath, store, guildID);
+  if (storeChanged || added || removed || updated) {
+    await writeSafe(filePath, store, guildID);
+  }
 
   const elapsedMs = Date.now() - startedAt;
   logger.info(`[🏠Housing][${guildID}] Refresh Ended for the Server`);

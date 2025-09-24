@@ -65,6 +65,56 @@ const WorldDetailZ = z.object({
     districts: z.array(DistrictZ).default([]),
 });
 
+// Type alias for parsed world detail used inside the cache
+type WorldDetail = z.infer<typeof WorldDetailZ>;
+
+// ---------------------------------------------------
+// Error & cache helpers
+// ---------------------------------------------------
+
+/**
+ * Error thrown when the PaissaDB API cannot be reached or responds with an
+ * unexpected status code. Allows callers to distinguish between "no data"
+ * and "service unavailable".
+ */
+export class PaissaUnavailableError extends Error {
+    public readonly status?: number;
+
+    constructor(status?: number, cause?: unknown) {
+        super('PaissaDB API is unavailable.');
+        this.name = 'PaissaUnavailableError';
+        if (typeof status === 'number') {
+            this.status = status;
+        }
+        if (cause) {
+            try { (this as any).cause = cause; }
+            catch { /* noop */ }
+        }
+    }
+}
+
+const CACHE_TTL_MS = 30_000;
+type CacheEntry = { expiresAt: number; detail: WorldDetail };
+const worldCache = new Map<string, CacheEntry>();
+
+function cacheKey(worldId: number) {
+    return `world:${worldId}`;
+}
+
+function getCachedWorld(worldId: number): WorldDetail | null {
+    const entry = worldCache.get(cacheKey(worldId));
+    if (!entry) return null;
+    if (Date.now() >= entry.expiresAt) {
+        worldCache.delete(cacheKey(worldId));
+        return null;
+    }
+    return entry.detail;
+}
+
+function setCachedWorld(worldId: number, detail: WorldDetail, ttlMs: number) {
+    worldCache.set(cacheKey(worldId), { detail, expiresAt: Date.now() + ttlMs });
+}
+
 // ---------------------------------------------------
 // Normalization helpers
 // ---------------------------------------------------
@@ -113,87 +163,100 @@ function eqDistrict(a: string, b:string) {
 
 /**
  * Fetch and normalize free plots for a single world from PaissaDB.
- * 
+ *
  * Steps:
  *  - Resolve world ID by name.
- *  - GET /worlds/:id from paissaDB.
+ *  - GET /worlds/:id from PaissaDB (with short-lived cache).
  *  - Validate with Zod and filter by requested districts
  *  - Normalize each open plot into our 'Plot' model.
- * 
+ *
  * @param dc - Datacenter name (used as fallback if API lacks it)
  * @param world - World name (case-insensitive lookup)
  * @param districts - List of districts names to include (compared via eqDistrict)
  * @returns Array of normalized Plot objects
  */
 export class PaissaProvider {
-  async fetchFreePlots(dc: string, world: string, districts: string[]): Promise<Plot[]> {
+    constructor(private readonly cacheTtlMs: number = CACHE_TTL_MS) {}
 
-    // Resolve PaissaDB world ID by world name
-    const id = await getWorldIdByName(world);
-    if (!id) return [];
+    async fetchFreePlots(dc: string, world: string, districts: string[]): Promise<Plot[]> {
+        const id = await getWorldIdByName(world);
+        if (!id) return [];
 
-    // Fetch details for world (includes districts + open plots)
-    const res = await fetch(`https://paissadb.zhu.codes/worlds/${id}`, { headers: { 'user-agent': 'AetherShiba/1.0' }});
-    if (!res.ok) return [];
+        let detail = getCachedWorld(id);
+        if (!detail) {
+            let res: Response;
+            try {
+                res = await fetch(`https://paissadb.zhu.codes/worlds/${id}`, {
+                    headers: { 'user-agent': 'AetherShiba/1.0' },
+                });
+            } catch (err) {
+                throw new PaissaUnavailableError(undefined, err);
+            }
 
-    // Validate/parse payload
-    const detail = WorldDetailZ.parse(await res.json());
+            if (!res.ok) {
+                throw new PaissaUnavailableError(res.status);
+            }
 
-    // If specific districts were requested, filter to those
-    const wanted = new Set(districts);
+            let payload: unknown;
+            try {
+                payload = await res.json();
+            } catch (err) {
+                throw new PaissaUnavailableError(res.status, err);
+            }
 
-    const out: Plot[] = [];
-    const now = Date.now();
-
-    // Iterate distrcits
-    for (const d of detail.districts) {
-
-        // If filtering is enabled, ensure this district matches
-        if (wanted.size && ![...wanted].some(w => eqDistrict(w, d.name))) continue;
-
-        // Iterate open plots within district
-        for (const p of d.open_plots) {
-            // Normalize lottery state
-            const state = normState(typeof p.lottery_state === 'number' ? String(p.lottery_state) : p.lottery_state);
-
-            // Build lottery object (convert types and units)
-            const lottery: Plot['lottery'] = { state };
-            if (p.lottery_end !== undefined) lottery.endsAt = String(p.lottery_end);
-            if (typeof p.lottery_winner === 'boolean') lottery.winner = p.lottery_winner;
-            if (p.lotto_entries != null) lottery.entries = Number(p.lotto_entries);
-            if (p.lotto_phase_until != null) lottery.phaseUntil = Number(p.lotto_phase_until) * 1000; // sec -> ms
-
-            // Build normalized plot
-            const item: Plot = {
-                dataCenter: detail.datacenter_name ?? dc, // fallback to requested DC if API omitted it
-                world: detail.name,
-                district: d.name,
-                ward: Number(p.ward_number),
-                plot: Number(p.plot_number),
-                lottery,
-            };
-
-            // Optional numeric fields
-            if (p.price !== undefined) item.price = Number(p.price);
-
-            // Normalize size
-            const sizeVal = normSize(typeof p.size === 'number' ? String(p.size) : p.size);
-            if (sizeVal) item.size = sizeVal;
-
-            // FC-only flag
-            if (typeof p.free_company_only === 'boolean') item.fcOnly = p.free_company_only;
-
-              // Last update time (seconds -> ms)
-              if (p.last_updated_time !== undefined) item.lastUpdated = Number(p.last_updated_time) * 1000;
-
-              // Skip ward 0 or expired lottery entries
-              if (item.ward <= 0) continue;
-              if (item.plot <= 0) continue;
-              if (item.lottery?.phaseUntil && item.lottery.phaseUntil <= now) continue;
-
-              out.push(item);
-          }
+            detail = WorldDetailZ.parse(payload);
+            setCachedWorld(id, detail, this.cacheTtlMs);
         }
+
+        const wanted = new Set(districts);
+        const out: Plot[] = [];
+        const now = Date.now();
+
+        for (const d of detail.districts) {
+            if (wanted.size && !Array.from(wanted).some((w) => eqDistrict(w, d.name))) continue;
+
+            for (const p of d.open_plots) {
+                const state = normState(typeof p.lottery_state === 'number' ? String(p.lottery_state) : p.lottery_state);
+                const lottery: Plot['lottery'] = { state };
+                if (p.lottery_end !== undefined) lottery.endsAt = String(p.lottery_end);
+                if (typeof p.lottery_winner === 'boolean') lottery.winner = p.lottery_winner;
+                if (p.lotto_entries != null) lottery.entries = Number(p.lotto_entries);
+                if (p.lotto_phase_until != null) lottery.phaseUntil = Number(p.lotto_phase_until) * 1000; // sec -> ms
+
+                const ward = Number(p.ward_number);
+                const plot = Number(p.plot_number);
+
+                const item: Plot = {
+                    dataCenter: detail.datacenter_name ?? dc,
+                    world: detail.name,
+                    district: d.name,
+                    ward,
+                    plot,
+                    lottery,
+                };
+
+                if (p.price !== undefined) item.price = Number(p.price);
+
+                const sizeVal = normSize(typeof p.size === 'number' ? String(p.size) : p.size);
+                if (sizeVal) item.size = sizeVal;
+
+                if (typeof p.free_company_only === 'boolean') item.fcOnly = p.free_company_only;
+
+                if (p.last_updated_time !== undefined) item.lastUpdated = Number(p.last_updated_time) * 1000;
+
+                if (!Number.isFinite(item.ward) || item.ward <= 0) continue;
+                if (!Number.isFinite(item.plot) || item.plot <= 0) continue;
+                if (item.lottery?.phaseUntil && item.lottery.phaseUntil <= now) continue;
+
+                out.push(item);
+            }
+        }
+
         return out;
     }
-  }
+
+    /** Clear the in-memory cache (primarily used for tests). */
+    clearCache() {
+        worldCache.clear();
+    }
+}

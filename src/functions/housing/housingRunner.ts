@@ -4,7 +4,7 @@ import type { Client, TextChannel, ForumChannel, ThreadChannel } from 'discord.j
 import { ChannelType } from 'discord.js';
 import { configManager } from '../../handlers/configHandler';
 import { HousingRequired } from '../../schemas/housing';
-import { PaissaProvider } from './housingProvider.paissa';
+import { PaissaProvider, PaissaUnavailableError } from './housingProvider.paissa';
 import { plotEmbed } from '../../embeds/housingEmbeds.js';
 import * as seen from './housingSaveConfig';
 import { logError } from '../../handlers/errorHandler.js';
@@ -55,9 +55,23 @@ export async function runHousingCheck(client: Client, guildID: string, opts: Run
      * Collect results from all worlds into a single array.
      */
     const allPlots = [] as Awaited<ReturnType<typeof provider.fetchFreePlots>>;
-    for (const world of hc.worlds) {
-      const p = await provider.fetchFreePlots(hc.dataCenter, world, hc.districts);
-      allPlots.push(...p);
+    const results = await Promise.allSettled(
+      hc.worlds.map((world) => provider.fetchFreePlots(hc.dataCenter, world, hc.districts))
+    );
+
+    for (const res of results) {
+      if (res.status === 'fulfilled') {
+        allPlots.push(...res.value);
+        continue;
+      }
+
+      const reason = res.reason;
+      if (reason instanceof PaissaUnavailableError) {
+        logError('housing check fetch (Paissa unavailable)', reason);
+        return 0;
+      }
+
+      logError('housing check fetch', reason);
     }
 
     // Periodically remove stale "seen" entries unless de-duplication is disabled

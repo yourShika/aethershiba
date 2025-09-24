@@ -30,6 +30,7 @@ export const HOUSING_DATA_RESET           = "🗑️ Housing data has been reset
 export const NO_HOUSING_CONFIGURED        = "⚠️ Housing is not configured.";
 export const HOUSING_NEEDS_FORUM          = "💬 Configured channel could not be found or is not a forum.";
 export const NO_FREE_PLOTS                = "❌ No free plots available.";
+export const PAISSA_API_UNAVAILABLE       = "🚨 The PaissaDB API is currently unavailable. Please try again later.";
 
 // ---------------------------------------------------
 // 👤 Profile
