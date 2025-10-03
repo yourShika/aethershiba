@@ -27,7 +27,6 @@ import {
     type LodestoneFreeCompanyFocus,
 } from '../../functions/profile/profileLodestoneAPI';
 import { logger } from "../../lib/logger";
-import { int } from "zod/v4";
 
 // Constants and Types
 const USER_AGENT = 'Mozilla/5.0 (compatible; AetherShiba/1.0)';
@@ -306,7 +305,12 @@ const sub: Sub = {
         let companyId = companyInput.trim();
         if (!/^[0-9]+$/.test(companyId)) {
             const matches = await searchLodestoneFreeCompanies(companyInput, worldMatch, datacenter);
-            const exact = matches.find(entry => normalize(entry.name) === normalize(worldMatch)) || matches[0];
+            const normalizedInput = normalize(companyInput);
+            const normalizedWorld = normalize(worldMatch);
+            const exact = matches.find(entry => normalize(entry.name) === normalizedInput && normalize(entry.world) === normalizedWorld)
+                ?? matches.find(entry => normalize(entry.name) === normalizedInput)
+                ?? matches.find(entry => normalize(entry.world) === normalizedWorld)
+                ?? matches[0];
             if (!exact) {
                 await interaction.editReply({
                     content: '🔍 No Free Company found with that name on the selected world.',

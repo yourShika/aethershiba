@@ -135,6 +135,70 @@ function collectDefinitions(html: string): Map<string, string[]> {
     return map;
 }
 
+function collectLeadSections(html: string): Map<string, string[]> {
+    const sections = new Map<string, string[]>();
+    const headingRe = /<h3[^>]*class="[^"]*heading--lead[^"]*"[^>]*>([\s\S]*?)<\/h3>/gi;
+    let headingMatch: RegExpExecArray | null;
+
+    while ((headingMatch = headingRe.exec(html)) !== null) {
+        const heading = normalizeWhitespace(stripTags(headingMatch[1] ?? ""));
+        if (!heading) continue;
+
+        const start = headingMatch.index + headingMatch[0].length;
+        const rest = html.slice(start);
+        const nextIndex = rest.search(/<h3[^>]*class="[^"]*heading--lead[^"]*"|<h2[^>]*class="[^"]*heading--lg[^"]*"/i);
+        const content = nextIndex === -1 ? rest : rest.slice(0, nextIndex);
+
+        const key = heading.toLowerCase();
+        const existing = sections.get(key) ?? [];
+        existing.push(content);
+        sections.set(key, existing);
+    }
+
+    return sections;
+}
+
+function extractLeadText(sections: Map<string, string[]>, key: string): string {
+    const entries = sections.get(key.toLowerCase());
+    if (!entries) return "";
+    for (const block of entries) {
+        const value = normalizeWhitespace(stripTags(block));
+        if (value) return value;
+    }
+    return "";
+}
+
+function parseFocusIconSections(html: string): LodestoneFreeCompanyFocus[] {
+    const resluts: LodestoneFreeCompanyFocus[] = [];
+    const listRe = /<ul[^>]*class="[^"]*freecompany__focus_icon[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi;
+    let listMatch: RegExpExecArray | null;
+
+    while ((listMatch = listRe.exec(html)) !== null) {
+        const listBlock = listMatch[1] ?? "";
+        const itemRe = /<li([^>]*)>([\s\S]*?)<\/li>/gi;
+        let itemMatch: RegExpExecArray | null;
+
+        while ((itemMatch = itemRe.exec(listBlock)) !== null) {
+            const attrs = itemMatch[1] ?? "";
+            const chunk = itemMatch[0] ?? "";
+            const body = itemMatch[2] ?? chunk;
+
+            const name = extractWithPatterns(body, [
+                /class="[^"]*(?:focus_icon__name|focus_icon__text)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
+                /<p[^>]*>([\s\S]*?)<\/p>/i,
+            ]);
+
+            if (!name) continue;
+
+            const inactive = /freecompany__focus_icon--off/i.test(attrs) || /freecompany__focus_icon--off/i.test(chunk) || /is[-_]?inactive/i.test(chunk);
+            const active = !inactive;
+
+            resluts.push({ name, status: active ? 'Active' : 'Inactive' });
+        }
+    }
+    return resluts;
+}
+
 function parseDate(value: string): Date | null {
     const trimmed = value.trim();
     if (!trimmed) return null;
@@ -505,10 +569,19 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
         return null;
     }
 
-    const name = extractWithPatterns(html, [
+    let name = extractWithPatterns(html, [
         /class="[^"]*freecompany__header__name[^"]*"[^>]*>([\s\S]*?)<\/h[12]>/i,
         /<h2[^>]*class="[^"]*freecompany__name[^"]*"[^>]*>([\s\S]*?)<\/h2>/i,
     ]);
+
+    if (!name) {
+        const ogTitleMatch = /<meta[^>]+property=['"]og:title['"][^>]+content=['"]([^'"<>]+)['"][^>]*>/i.exec(html);
+        if (ogTitleMatch?.[1]) {
+            const decoded = decodeEntities(ogTitleMatch[1]);
+            const titleMatch = /Free Company\s+"([^"]+)"/i.exec(decoded);
+            name = titleMatch?.[1] ?? decoded.trim();
+        }
+    }
 
     if (!name) {
         logger.debug(`Failed to extract FC name for ${key}`);
@@ -520,24 +593,41 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
         /Tag:\s*<span[^>]*>([\s\S]*?)<\/span>/i,
         /\[([^\]]{1,10})\]/,
     ]);
-    const tag = tagRaw.replace(/[\[\]]/g, '').trim();
+    const tag = tagRaw ? tagRaw.replace(/[\[\]]/g, '').trim() : '';
 
     const slogan = extractWithPatterns(html, [
         /class="[^"]*(?:freecompany__message|freecompany__slogan|freecompany__text__message)[^"]*"[^>]*>([\s\S]*?)<\/(?:div|p)>/i,
     ]);
 
     const definitions = collectDefinitions(html);
+    const leadSections = collectLeadSections(html);
     const worldRaw = definitions.get('world')?.[0] ?? '';
     const dcRaw = definitions.get('data center')?.[0] ?? '';
     const parsed = parseWorldAndDc(worldRaw);
-    const datacenter = dcRaw || parsed.dc;
-    const worldName = parsed.world || worldRaw;
+    let datacenter = dcRaw || parsed.dc;
+    let worldName = parsed.world || worldRaw;
 
-    const recruitment = definitions.get('recruitment')?.[0] ?? '';
-    const formed = definitions.get('formed')?.[0] ?? definitions.get('founded')?.[0] ?? '';
+    if (!worldName) {
+        const gcText = extractWithPatterns(html, [
+            /class="[^"]*entry__freecompany__gc[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
+        ]);
+        if (gcText) {
+            const fallback = parseWorldAndDc(gcText);
+            worldName = fallback.world || worldName;
+            datacenter = datacenter || fallback.dc;
+        }
+    }
+
+    const recruitment = definitions.get('recruitment')?.[0] || extractLeadText(leadSections, 'Recruitment') || '';
+    const formed = definitions.get('formed')?.[0]
+        ?? definitions.get('founded')?.[0]
+        ?? extractLeadText(leadSections, 'Formed')
+        ?? '';
     const formedAt = parseDate(formed);
 
-    const activeMembersRaw = definitions.get('active members')?.[0] ?? '';
+    const activeMembersRaw = definitions.get('active members')?.[0]
+        ?? extractLeadText(leadSections, 'Active Members')
+        ?? '';
     let activeMembers: number | null = null;
     if (activeMembersRaw) {
         const digits = activeMembersRaw.replace(/[^0-9]/g, '');
@@ -545,11 +635,34 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
         else if (/0/.test(activeMembersRaw)) activeMembers = 0;
     }
 
-    const rank = definitions.get('rank')?.[0] ?? '';
-    const ranking = definitions.get('ranking')?.[0] 
+    const rank = definitions.get('rank')?.[0]
+        ?? extractLeadText(leadSections, 'Rank')
+        ?? '';
+
+    let ranking = definitions.get('ranking')?.[0] 
         ?? definitions.get('estate standing')?.[0]
         ?? definitions.get('estate ranking')?.[0]
         ?? '';
+
+    if (!ranking) {
+        const rankingSections = leadSections.get('ranking');
+        if (rankingSections?.length) {
+            const rows: string[] = [];
+            for (const section of rankingSections) {
+                const rowRe = /<th[^>]*>([\s\S]*?)<\/th>/gi;
+                let rowMatch: RegExpExecArray | null;
+                while ((rowMatch = rowRe.exec(section)) !== null) {
+                    const text = normalizeWhitespace(stripTags(rowMatch[1] ?? ''));
+                    if (text) rows.push(text);
+                }
+                if (!rows.length) {
+                    const text = normalizeWhitespace(stripTags(section));
+                    if (text) rows.push(text);
+                }
+            }
+            if (rows.length) ranking = rows.join('; ');
+        }
+    }
 
     const crestLayers: string[] = [];
     const crestRe = /freecompany__crest__image[^>]*>[\s\S]*?<img[^>]+(?:src|data-src|data-lazy-src|data-original)=['"]([^'"\s]+)['"]/gi;
@@ -563,17 +676,19 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
     }
 
     const reputation: LodestoneFreeCompanyReputation[] = [];
-    const reputationRe = /<(?:li|div)[^>]*class="[^"]*freecompany__reputation__item[^"]*"[^>]*>([\s\S]*?)<\/(?:li|div)>/gi;
+    const reputationRe = /<(?:li|div)[^>]*class="[^"]*freecompany__reputation(?:__item)?[^"]*"[^>]*>([\s\S]*?)<\/(?:li|div)>/gi;
 
     let repMatch: RegExpExecArray | null;
     while((repMatch = reputationRe.exec(html)) !== null) {
         const block = repMatch[1] ?? '';
         const repName = extractWithPatterns(block, [
             /class="[^"]*(?:reputation__name|freecompany__reputation__name)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
+            /class="[^"]*freecompany__reputation__gcname[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
             /data-tooltip=['"]([^'"\n]+)['"]/i,
         ]);
         const repValue = extractWithPatterns(block, [
             /class="[^"]*(?:reputation__value|freecompany__reputation__value)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
+            /class="[^"]*freecompany__reputation__rank[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
             /title=['"]([^'"\n]+)['"]/i,
         ]);
         if (repName || repValue) reputation.push({ name: repName, value: repValue });
@@ -587,6 +702,9 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
             /class="[^"]*(?:estate__name|freecompany__estate__name)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div|h[1-6])>/i,
             /<h3[^>]*>([\s\S]*?)<\/h3>/i,
         ]);
+        const estateTitle = extractWithPatterns(block, [
+            /class="[^"]*estate__title[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div|h[1-6])>/i,
+        ]);
         const estateInfo = extractWithPatterns(block, [
             /class="[^"]*(?:estate__text|freecompany__estate__txt)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
             /<p[^>]*>([\s\S]*?)<\/p>/i,
@@ -594,13 +712,23 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
         if (estateName || estateInfo) {
             estate = {
                 name: estateName,
-                info: estateInfo,
+                info: [estateTitle, estateInfo].filter(Boolean).join('\n'),
             };
         }
     }
 
-    const focus = parseToggleList(html, 'freecompany__focus__item');
-    const seeking = parseToggleList(html, 'freecompany__recruitment__item');
+    let focus = parseToggleList(html, 'freecompany__focus__item');
+    if (!focus.length) {
+        focus = parseFocusIconSections(html);
+    }
+
+    let seeking = parseToggleList(html, 'freecompany__recruitment__item');
+    if (!seeking.length) {
+        const seekingText = extractLeadText(leadSections, 'Seeking');
+        if (seekingText) {
+            seeking = [{ name: seekingText, status: '' }];
+        }
+    }
 
     const freeCompany: LodestoneFreeCompany = {
         id: key,
