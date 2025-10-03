@@ -67,6 +67,160 @@ function stripTags(input: string): string {
         .replace(/\s+/g, " ").trim());
 }
 
+const normalizeWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
+
+type CacheEntry<T> = { value: T; expires: number };
+
+const FC_SEARCH_CACHE = new Map<string, CacheEntry<LodestoneFreeCompanySearchResult[]>>();
+const FC_DETAIL_CACHE = new Map<string, CacheEntry<LodestoneFreeCompany>>();
+const FC_MEMBER_CACHE = new Map<string, CacheEntry<LodestoneFreeCompanyMember[]>>();
+
+const FC_SEARCH_TTL = 5 * 60 * 1000; // 5 minutes
+const FC_DETAIL_TTL = 15 * 60 * 1000; // 15 minutes
+const FC_MEMBER_TTL = 5 * 60 * 1000; // 5 minutes
+
+const now = () => Date.now();
+
+function getCacheEntry<T>(map: Map<string, CacheEntry<T>>, key: string): T | null {
+    const entry = map.get(key);
+    if (!entry) return null;
+    if (entry.expires < now()) {
+        map.delete(key);
+        return null;
+    }
+    return entry.value;
+}
+
+function setCacheEntry<T>(map: Map<string, CacheEntry<T>>, key: string, value: T, ttl: number) {
+    map.set(key, { value, expires: now() + ttl });
+}
+
+function parseWorldAndDc(raw: string): { world: string; dc: string } {
+    const match = /(.*?)(?:\s*\[([^\]]+)\])?$/.exec(raw.trim());
+    const world = match?.[1]?.trim() ?? raw.trim();
+    const dc = match?.[2]?.trim() ?? "";
+    return { world, dc };
+}
+
+function toAbsoluteUrl(url: string): string {
+    if (!url) return url;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (url.startsWith('//')) return `https:${url}`;
+    if (url.startsWith('/')) return `https://eu.finalfantasyxiv.com${url}`;
+    return url;
+}
+
+const extractWithPatterns = (source: string, patterns: RegExp[]): string => {
+    for (const pattern of patterns) {
+        pattern.lastIndex = 0;
+        const match = pattern.exec(source);
+        if (match?.[1]) return normalizeWhitespace(stripTags(match[1]));
+    }
+    return "";
+};
+
+function collectDefinitions(html: string): Map<string, string[]> {
+    const map = new Map<string, string[]>();
+    const re = /<dt[^>]*>([\s\S]*?)<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/gi;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(html)) !== null) {
+        const key = normalizeWhitespace(stripTags(match[1] ?? ""));
+        const value = normalizeWhitespace(stripTags(match[2] ?? ""));
+        if (!key) continue;
+        const lcKey = key.toLowerCase();
+        const existing = map.get(lcKey) ?? [];
+        if (value) existing.push(value);
+        map.set(lcKey, existing);
+    }
+    return map;
+}
+
+function parseDate(value: string): Date | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const ts = Date.parse(trimmed);
+    if (!Number.isNaN(ts)) return new Date(ts);
+    const match = /(\d{4})[\/.](\d{1,2})[\/.](\d{1,2})/.exec(trimmed);
+    if (match) {
+        const [, year, month, day] = match;
+        const y = Number(year);
+        const m = Number(month);
+        const d = Number(day);
+        if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(d)) {
+            return new Date(Date.UTC(y, m - 1, d));
+        }
+    }
+    return null;
+}
+
+export interface LodestoneFreeCompanySearchResult {
+    id: string;
+    name: string;
+    tag?: string;
+    world: string;
+    dc?: string;
+}
+
+export interface LodestoneFreeCompanyReputation {
+    name: string;
+    value: string;
+}
+
+export interface LodestoneFreeCompanyFocus {
+    name: string;
+    status: string;
+}
+
+export interface LodestoneFreeCompanyEstate {
+    name: string;
+    info: string;
+}
+
+export interface LodestoneFreeCompany {
+    id: string;
+    name: string;
+    tag: string;
+    datacenter: string;
+    world: string;
+    slogan: string;
+    formed: string;
+    formedAt: Date | null;
+    activeMembers: number | null;
+    recruitment: string;
+    rank: string;
+    ranking: string;
+    reputation: LodestoneFreeCompanyReputation[];
+    estate: LodestoneFreeCompanyEstate | null;
+    focus: LodestoneFreeCompanyFocus[];
+    seeking: LodestoneFreeCompanyFocus[];
+    crestLayers: string[];
+}
+
+export interface LodestoneFreeCompanyMember {
+    id: string;
+    name: string;
+    rank: string;
+}
+
+function parseToggleList(html: string, itemClass: string): LodestoneFreeCompanyFocus[] {
+    const regex = new RegExp(`<li[^>]*class="[^"]*${itemClass}[^"]*"[^>]*>[\\s\\S]*?<\\/li>`, 'gi');
+    const results: LodestoneFreeCompanyFocus[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(html)) !== null) {
+        const chunk = match[0] ?? '';
+        const name = extractWithPatterns(chunk, [
+            /data-tooltip=['"]([^'"\n]+)['"]/i,
+            /title=['"]([^'"\n]+)['"]/i,
+            /<p[^>]*>([\s\S]*?)<\/p>/i,
+        ]);
+        if (!name) continue;
+        const inactive = /is[-_]?inactive/i.test(chunk);
+        const active = /is[-_]?active/i.test(chunk) && !inactive;
+        results.push({ name, status: active ? 'Active' : 'Inactive'});
+    };
+    return results;
+}
+
 export async function searchLodestoneCharacters(name: string, world: string): Promise<LodestoneSearchResult[]> {
     const params = new URLSearchParams();
     params.set("q", name);
@@ -260,3 +414,260 @@ export async function fetchLodestoneCharacter(id: string): Promise<LodestoneChar
         mounts,
     };  
 }
+
+export async function searchLodestoneFreeCompanies(name: string, world?: string, datacenter?: string): Promise<LodestoneFreeCompanySearchResult[]> {
+    const trimmed = name.trim();
+    if (!trimmed) return [];
+
+    const key = JSON.stringify({
+        name: trimmed.toLowerCase(),
+        world: (world ?? '').toLowerCase(),
+        datacenter: (datacenter ?? '').toLowerCase(),
+    });
+
+    const cached = getCacheEntry(FC_SEARCH_CACHE, key);
+    if (cached) return cached;
+
+    const params = new URLSearchParams();
+    params.set("q", trimmed);
+    if (world) params.set("worldname", world);
+    if (datacenter) params.set("dcname", datacenter);
+    params.set("order", '');
+    params.set("page", '1');
+
+    const url = `https://eu.finalfantasyxiv.com/lodestone/freecompany/?${params.toString()}`;
+    logger.info(`Searching Lodestone free companies: ${url}`);
+
+    const html = await fetchText(url);
+    if (!html) return [];
+
+    const results: LodestoneFreeCompanySearchResult[] = [];
+    const seen = new Set<string>();
+    const entryRe = /<a[^>]*href=['"]\/lodestone\/freecompany\/(\d+)(?:\/)?['"][^>]*>([\s\S]*?)<\/a>/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = entryRe.exec(html)) !== null) {
+        const id = match[1];
+        const block = match[2] ?? '';
+        if (!id || !block) continue;
+        if (seen.has(id)) continue;
+        if (!/freecompany/i.test(block)) continue;
+
+        const nameText = extractWithPatterns(block, [
+            /class="[^"]*(?:entry__name|freecompany__name)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
+            /<strong[^>]*>([\s\S]*?)<\/strong>/i,
+        ]) || normalizeWhitespace(stripTags(block));
+        if (!nameText) continue;
+
+        const worldText = extractWithPatterns(block, [
+            /class="[^"]*(?:entry__world|freecompany__world)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
+        ]);
+
+        const tagText = extractWithPatterns(block, [
+            /class="[^"]*(?:entry__tag|freecompany__tag)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
+            /\[([^\]]{1,12})\]/,
+        ]);
+
+        const parsed = parseWorldAndDc(worldText || world || '');
+
+        const entry: LodestoneFreeCompanySearchResult = {
+            id,
+            name: nameText,
+            world: parsed.world || world || '',
+        };
+
+        if (parsed.dc) entry.dc = parsed.dc;
+        if (tagText) entry.tag = tagText.replace(/[\[\]]/g, '').trim();
+
+        results.push(entry);
+        seen.add(id);
+
+        if (results.length >= 25) break;
+    }
+
+    setCacheEntry(FC_SEARCH_CACHE, key, results, FC_SEARCH_TTL);
+    return results;
+}
+
+export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFreeCompany | null> {
+    const key = id.trim();
+    if (!key) return null;
+
+    const cached = getCacheEntry(FC_DETAIL_CACHE, key);
+    if (cached) return cached;
+
+    const url = `https://eu.finalfantasyxiv.com/lodestone/freecompany/${key}/`;
+    logger.debug(`Fetching Lodestone free company: ${url}`);
+
+    const html = await fetchText(url);
+    if (!html) {
+        logger.debug(`Lodestone returned not-ok or empty for FC ${key}`);
+        return null;
+    }
+
+    const name = extractWithPatterns(html, [
+        /class="[^"]*freecompany__header__name[^"]*"[^>]*>([\s\S]*?)<\/h[12]>/i,
+        /<h2[^>]*class="[^"]*freecompany__name[^"]*"[^>]*>([\s\S]*?)<\/h2>/i,
+    ]);
+
+    if (!name) {
+        logger.debug(`Failed to extract FC name for ${key}`);
+        return null;
+    }
+
+    const tagRaw = extractWithPatterns(html, [
+        /class="[^"]*(?:freecompany__header__tag|freecompany__nickname)[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
+        /Tag:\s*<span[^>]*>([\s\S]*?)<\/span>/i,
+        /\[([^\]]{1,10})\]/,
+    ]);
+    const tag = tagRaw.replace(/[\[\]]/g, '').trim();
+
+    const slogan = extractWithPatterns(html, [
+        /class="[^"]*(?:freecompany__message|freecompany__slogan|freecompany__text__message)[^"]*"[^>]*>([\s\S]*?)<\/(?:div|p)>/i,
+    ]);
+
+    const definitions = collectDefinitions(html);
+    const worldRaw = definitions.get('world')?.[0] ?? '';
+    const dcRaw = definitions.get('data center')?.[0] ?? '';
+    const parsed = parseWorldAndDc(worldRaw);
+    const datacenter = dcRaw || parsed.dc;
+    const worldName = parsed.world || worldRaw;
+
+    const recruitment = definitions.get('recruitment')?.[0] ?? '';
+    const formed = definitions.get('formed')?.[0] ?? definitions.get('founded')?.[0] ?? '';
+    const formedAt = parseDate(formed);
+
+    const activeMembersRaw = definitions.get('active members')?.[0] ?? '';
+    let activeMembers: number | null = null;
+    if (activeMembersRaw) {
+        const digits = activeMembersRaw.replace(/[^0-9]/g, '');
+        if (digits) activeMembers = Number(digits);
+        else if (/0/.test(activeMembersRaw)) activeMembers = 0;
+    }
+
+    const rank = definitions.get('rank')?.[0] ?? '';
+    const ranking = definitions.get('ranking')?.[0] 
+        ?? definitions.get('estate standing')?.[0]
+        ?? definitions.get('estate ranking')?.[0]
+        ?? '';
+
+    const crestLayers: string[] = [];
+    const crestRe = /freecompany__crest__image[^>]*>[\s\S]*?<img[^>]+(?:src|data-src|data-lazy-src|data-original)=['"]([^'"\s]+)['"]/gi;
+    let crestMatch: RegExpExecArray | null;
+    while ((crestMatch = crestRe.exec(html)) !== null) {
+        const src = crestMatch[1];
+        if (!src) continue;
+        const absolute = toAbsoluteUrl(src);
+        if (!absolute) continue;
+        if (!crestLayers.includes(absolute)) crestLayers.push(absolute);
+    }
+
+    const reputation: LodestoneFreeCompanyReputation[] = [];
+    const reputationRe = /<(?:li|div)[^>]*class="[^"]*freecompany__reputation__item[^"]*"[^>]*>([\s\S]*?)<\/(?:li|div)>/gi;
+
+    let repMatch: RegExpExecArray | null;
+    while((repMatch = reputationRe.exec(html)) !== null) {
+        const block = repMatch[1] ?? '';
+        const repName = extractWithPatterns(block, [
+            /class="[^"]*(?:reputation__name|freecompany__reputation__name)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
+            /data-tooltip=['"]([^'"\n]+)['"]/i,
+        ]);
+        const repValue = extractWithPatterns(block, [
+            /class="[^"]*(?:reputation__value|freecompany__reputation__value)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
+            /title=['"]([^'"\n]+)['"]/i,
+        ]);
+        if (repName || repValue) reputation.push({ name: repName, value: repValue });
+    }
+
+    const estateMatch = /<(?:section|div)[^>]*class="[^"]*freecompany__estate[^"]*"[^>]*>([\s\S]*?)<\/(?:section|div)>/i.exec(html);
+    let estate: LodestoneFreeCompanyEstate | null = null;
+    if (estateMatch) {
+        const block = estateMatch[1] ?? '';
+        const estateName = extractWithPatterns(block, [
+            /class="[^"]*(?:estate__name|freecompany__estate__name)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div|h[1-6])>/i,
+            /<h3[^>]*>([\s\S]*?)<\/h3>/i,
+        ]);
+        const estateInfo = extractWithPatterns(block, [
+            /class="[^"]*(?:estate__text|freecompany__estate__txt)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
+            /<p[^>]*>([\s\S]*?)<\/p>/i,
+        ]);
+        if (estateName || estateInfo) {
+            estate = {
+                name: estateName,
+                info: estateInfo,
+            };
+        }
+    }
+
+    const focus = parseToggleList(html, 'freecompany__focus__item');
+    const seeking = parseToggleList(html, 'freecompany__recruitment__item');
+
+    const freeCompany: LodestoneFreeCompany = {
+        id: key,
+        name,
+        tag,
+        datacenter,
+        world: worldName,
+        slogan,
+        formed,
+        formedAt,
+        activeMembers,
+        recruitment,
+        rank,
+        ranking,
+        reputation,
+        estate,
+        focus,
+        seeking,
+        crestLayers,
+    };
+
+    setCacheEntry(FC_DETAIL_CACHE, key, freeCompany, FC_DETAIL_TTL);
+    return freeCompany;
+}
+    
+export async function fetchLodestoneFreeCompanyMembers(id: string, limit = 20): Promise<LodestoneFreeCompanyMember[] | null> {
+    const normalizedLimit = Math.max(1, Math.min(limit, 50));
+    const key = `${id.trim()}:${normalizedLimit}`;
+    const cached = getCacheEntry(FC_MEMBER_CACHE, key);
+    if (cached) return cached;
+
+    const url = `https://eu.finalfantasyxiv.com/lodestone/freecompany/${id}/member/`;
+    logger.debug(`Fetching Lodestone free company members: ${url}`);
+
+    const html = await fetchText(url);
+    if (!html) return [];
+
+    const members: LodestoneFreeCompanyMember[] = [];
+    const seen = new Set<string>();
+    const entryRe = /<li[^>]*class="[^"]*(?:entry__freecompany__member|entry__member)[^"]*"[^>]*>([\s\S]*?)<\/li>/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = entryRe.exec(html)) !== null) {
+        const block = match[1] ?? '';
+        const anchor = /<a[^>]*href=['"]\/lodestone\/character\/(\d+)(?:\/)?['"][^>]*>([\s\S]*?)<\/a>/i.exec(block);
+        if (!anchor) continue;
+        const memberId = anchor[1];
+        if (!memberId || seen.has(memberId)) continue;
+        seen.add(memberId);
+
+        const inner = anchor[2] ?? '';
+        const name = extractWithPatterns(inner, [
+            /class="[^"]*(?:entry__name|freecompany__member__name|entry__character__name)[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
+            /<p[^>]*>([\s\S]*?)<\/p>/i,
+        ]) || normalizeWhitespace(stripTags(inner));
+
+        const rank = extractWithPatterns(block, [
+            /class="[^"]*(?:entry__freecompany__rank|freecompany__member__rank)[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
+            /<span[^>]*class="[^"]*rank[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
+        ]);
+
+        members.push({ id: memberId, name, rank });
+        if (members.length >= normalizedLimit) break;
+    }
+
+    setCacheEntry(FC_MEMBER_CACHE, key, members, FC_MEMBER_TTL);
+    return members;
+}
+    
+
