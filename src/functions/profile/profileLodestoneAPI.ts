@@ -119,13 +119,37 @@ const extractWithPatterns = (source: string, patterns: RegExp[]): string => {
     return "";
 };
 
+function extractTemporalValue(html: string): string {
+    const timeAttrMatch = /(?:data-)?(?:time|datetime|ldst(?:_time)?|ldsttime)=['"]([^'"<>]+)['"]/i.exec(html);
+    if (timeAttrMatch?.[1]) return timeAttrMatch[1];
+
+    const epochMatch = /data-(?:epoch|unix|timestamp)=['"](\d+)['"]/i.exec(html);
+    if (epochMatch?.[1]) {
+        const raw = Number(epochMatch[1]);
+        if (!Number.isNaN(raw) && raw > 0) {
+            const ms = raw > 1e12 ? raw : raw * 1000;
+            const date = new Date(ms);
+            if (!Number.isNaN(date.getTime())) return date.toISOString();
+        }
+    }
+
+    const scriptMatch = /ldst_strftime\(\s*['"]([^'"()]+)['"]/i.exec(html);
+    if (scriptMatch?.[1]) return scriptMatch[1];
+
+    return '';
+}
+
 function collectDefinitions(html: string): Map<string, string[]> {
     const map = new Map<string, string[]>();
     const re = /<dt[^>]*>([\s\S]*?)<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/gi;
     let match: RegExpExecArray | null;
     while ((match = re.exec(html)) !== null) {
         const key = normalizeWhitespace(stripTags(match[1] ?? ""));
-        const value = normalizeWhitespace(stripTags(match[2] ?? ""));
+        const rawValue = match[2] ?? "";
+        const valueText = normalizeWhitespace(stripTags(rawValue));
+        const temporalValue = extractTemporalValue(rawValue);
+        const cleanedValue = valueText && !/^[-—–]+$/.test(valueText) ? valueText : '';
+        const value = cleanedValue || temporalValue;
         if (!key) continue;
         const lcKey = key.toLowerCase();
         const existing = map.get(lcKey) ?? [];

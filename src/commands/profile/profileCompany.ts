@@ -27,6 +27,7 @@ import {
     type LodestoneFreeCompanyFocus,
 } from '../../functions/profile/profileLodestoneAPI';
 import { logger } from "../../lib/logger";
+import { getCompanyEmoji, getCityEmoji } from "../../const/emojis";
 
 // Constants and Types
 const USER_AGENT = 'Mozilla/5.0 (compatible; AetherShiba/1.0)';
@@ -87,14 +88,39 @@ function truncate(value: string, max = 1024): string {
     return `${value.slice(0, max - 1)}…`;
 }
 
-function formatFocusList(items: LodestoneFreeCompanyFocus[]): string {
+type FocusListOptions = {
+    activeOnly?: boolean;
+    includeEmoji?: boolean;
+    includeStatus?: boolean;
+};
+
+function formatFocusList(
+    items: LodestoneFreeCompanyFocus[],
+    { activeOnly = false, includeEmoji = false, includeStatus = true }: FocusListOptions = {}
+): string {
     if (!items.length) return '';
-    return items
-        .map(({ name, status}) => `• ${name}${status ? ` — ${status}` : ''}`)
-        .join('\n');
+
+    const filtered = activeOnly
+        ? items.filter(item => item.status?.toLowerCase() === 'active' || item.status === '')
+        : items;
+
+    if (!filtered.length) return '';
+
+    const lines = filtered
+        .map(({ name, status }) => {
+            const trimmedName = name?.trim() ?? '';
+            const emoji = includeEmoji ? (getCompanyEmoji(trimmedName) ?? '') : '';
+            const parts = [emoji, trimmedName].filter(Boolean);
+            if (!parts.length) return '';
+            if (includeStatus && status) parts.push(`— ${status}`);
+            return `• ${parts.join(' ')}`;
+        })
+        .filter(Boolean);
+
+    return lines.join('\n');
 }
 
-function fomratMembers(members: LodestoneFreeCompanyMember[]): string {
+function formatMembers(members: LodestoneFreeCompanyMember[]): string {
     if (!members.length) return '';
     const formatted = members.map(member => {
         const profileUrl = `https://eu.finalfantasyxiv.com/lodestone/character/${member.id}/`;
@@ -109,16 +135,30 @@ function formatReputation(reputation: LodestoneFreeCompany['reputation']): strin
     return truncate(reputation.map(entry => {
         const name = entry.name || 'Reputation';
         const value = entry.value || '-';
-        return `• ${name}: ${value}`;
+        const emoji = getCityEmoji(name) ?? '';
+        const displayName = [emoji, name].filter(Boolean).join(' ').trim();
+        return `• ${displayName || name}: ${value}`;
     }).join('\n'));
 }
 
 function formatFormed(formed: string, formedAt: Date | null): string {
     if (formedAt) {
-        const ts = Math.floor(formedAt.getTime() / 1000);
-        return `<t:${ts}:D>`;
+        return new Intl.DateTimeFormat('en-GB').format(formedAt);
     }
+    if (formed && formed.includes('document.')) {
+        return '-';
+    }
+
     return formed || '-';
+}
+
+function formatRanking(value: string | undefined): string {
+    if (!value) return '';
+    return value
+        .split(/;+/)
+        .map(part => part.trim())
+        .filter(Boolean)
+        .join('\n');
 }
 
 function buildFreeCompanyEmbed(
@@ -126,9 +166,13 @@ function buildFreeCompanyEmbed(
     members: LodestoneFreeCompanyMember[],
     crestName?: string,
 ) {
+    const title = company.tag
+        ? `${company.name} <${company.tag}>`
+        : company.name;
+
     const embed = new EmbedBuilder()
         .setColor(Colors.Blurple)
-        .setTitle(company.name)
+        .setTitle(title)
         .setURL(`https://eu.finalfantasyxiv.com/lodestone/freecompany/${company.id}/`)
         .setTimestamp();
 
@@ -139,15 +183,17 @@ function buildFreeCompanyEmbed(
     }
 
     const descriptionParts: string[] = [];
+    const location = [company.world, company.datacenter ? `(${company.datacenter})` : '']
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+    if (location) descriptionParts.push(location);
     if (company.slogan) descriptionParts.push(company.slogan);
     if (descriptionParts.length) {
         embed.setDescription(descriptionParts.join('\n'));
     }
 
     embed.addFields(
-        { name: 'Tag', value: company.tag ? `\`${company.tag}\`` : '—', inline: true },
-        { name: 'Data Center', value: company.datacenter || '—', inline: true },
-        { name: 'World', value: company.world || '—', inline: true },
         { name: 'Recruitment', value: company.recruitment || '—', inline: true },
         { name: 'Rank', value: company.rank || '—', inline: true },
         { name: 'Active Members', value: typeof company.activeMembers === 'number'
@@ -156,25 +202,27 @@ function buildFreeCompanyEmbed(
         { name: 'Formed', value: formatFormed(company.formed, company.formedAt), inline: true },
     );
 
-    if (company.ranking) {
-        embed.addFields({ name: 'Ranking', value: company.ranking, inline: true});
+    const ranking = formatRanking(company.ranking);
+    if (ranking) {
+        embed.addFields({ name: 'Ranking', value: ranking, inline: false});
     }
 
     const reputation = formatReputation(company.reputation);
     if (reputation) embed.addFields({ name: 'Reputation', value: reputation, inline: false });
 
-    if (company.estate) {
-        const estateParts = [company.estate.name, company.estate.info].filter(Boolean).join('\n');
-        embed.addFields({ name: 'Estate Profile', value: truncate(estateParts || '-'), inline: false });
-    }
+    const estateParts = [company.estate?.name, company.estate?.info]
+        .filter((part): part is string => Boolean(part && part.trim()))
+        .join('\n');
+    embed.addFields({ name: 'Estate Profile', value: truncate(estateParts) || '—', inline: false });
 
-    const focus = formatFocusList(company.focus);
+    const focus = formatFocusList(company.focus, {
+        activeOnly: true,
+        includeEmoji: true,
+        includeStatus: false,
+    });
     if (focus) embed.addFields({ name: 'Focus', value: truncate(focus), inline: false});
 
-    const seeking = formatFocusList(company.seeking);
-    if (seeking) embed.addFields({ name: 'Seeking', value: truncate(seeking), inline: false });
-
-    const memberList = fomratMembers(members);
+    const memberList = formatMembers(members);
     if (memberList) embed.addFields({ name: `Featured Members`, value: memberList, inline: false });
 
     return embed;
