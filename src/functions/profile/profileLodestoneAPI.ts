@@ -50,7 +50,9 @@ function decodeEntities(s: string): string {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, '"');
+    .replace(/&quot;/g, '"')
+    .replace(/&laquo;/g, "«")
+    .replace(/&raquo;/g, "»");
 }
 
 export interface LodestoneSearchResult {
@@ -68,6 +70,53 @@ function stripTags(input: string): string {
 }
 
 const normalizeWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
+
+function normalizeFreeCompanyTag(raw: string | undefined): string {
+    if (!raw) return "";
+    const decoded = normalizeWhitespace(decodeEntities(raw));
+
+    const bracketMatch = /[«<\[]\s*([^«»<>\[\]]{1,12})\s*[»>\]]/.exec(decoded);
+    if (bracketMatch?.[1]) return bracketMatch[1].trim();
+
+    const withoutLabel = decoded.replace(/(?:free\s*)?company\s*tag:?/gi, "").trim();
+    const words = withoutLabel
+        .split(/\s+/)
+        .map(part => part.replace(/^[«<\[]|[»>\]]$/g, "").trim())
+        .filter(Boolean);
+    for (let i = words.length - 1; i >= 0; i -= 1) {
+        const candidate = words[i];
+        if (candidate && candidate.length <= 12) return candidate;
+    }
+
+    return withoutLabel.replace(/[«»\[\]]/g, "").trim();
+}
+
+function extractFreeCompanyTagFromHtml(html: string): string {
+    if (!html) return "";
+
+    const elementMatch = /<(?<tag>p|span|div)[^>]*class="[^"]*freecompany__text__tag[^"]*"[^>]*>([\s\S]*?)<\/\k<tag>>/i.exec(html);
+    if (elementMatch?.[2]) {
+        const candidate = normalizeFreeCompanyTag(stripTags(elementMatch[2] ?? ""));
+        if (candidate) return candidate;
+    }
+
+    const dataAttrMatch = /class="[^"]*freecompany__text__tag[^"]*"[^>]*data-(?:fc-)?tag=['"]([^'"<>]{1,16})['"]/i.exec(html);
+    if (dataAttrMatch?.[1]) {
+        const candidate = normalizeWhitespace(decodeEntities(dataAttrMatch[1] ?? ""));
+        if (candidate) return candidate;
+    }
+
+    const labelMatch = /Company\s*Tag[^«<\[]*([«<\[][\s\S]*?[»>\]])/i.exec(html);
+    if (labelMatch?.[1]) {
+        const candidate = normalizeFreeCompanyTag(stripTags(labelMatch[1] ?? ""));
+        if (candidate) return candidate;
+    }
+
+    const fallback = normalizeFreeCompanyTag(stripTags(html));
+    if (fallback && !/^(?:company|tag|company\s*tag)$/i.test(fallback)) return fallback;
+
+    return "";
+}
 
 type CacheEntry<T> = { value: T; expires: number };
 
@@ -432,9 +481,29 @@ export async function fetchLodestoneCharacter(id: string): Promise<LodestoneChar
     );
 
     // Free Company block
-    const freeCompanyName = get(
-        /<div class="character__freecompany__name">[\s\S]*?<h4><a href="\/lodestone\/freecompany\/\d+\/"[^>]*>([^<]+)<\/a>/
-    );
+    let freeCompanyName = "";
+    {
+        const freeCompanyBlockMatch = /<div class="character__freecompany__name">([\s\S]*?)<\/div>/i.exec(html);
+        if (freeCompanyBlockMatch) {
+            const block = freeCompanyBlockMatch[1] ?? "";
+            const fcName = extractWithPatterns(block, [
+                /class="[^"]*freecompany__text__name[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
+                /<h4[^>]*>([\s\S]*?)<\/h4>/i,
+                /<a[^>]*>([\s\S]*?)<\/a>/i,
+            ]);
+            const fcTag = extractFreeCompanyTagFromHtml(block) || extractFreeCompanyTagFromHtml(html);
+            if (fcName) {
+                freeCompanyName = fcTag ? `${fcName} <${fcTag}>` : fcName;
+            }
+        }
+    }
+
+    if (!freeCompanyName) {
+        freeCompanyName = get(
+            /<div class="character__freecompany__name">[\s\S]*?<h4><a href="\/lodestone\/freecompany\/\d+\/"[^>]*>([^<]+)<\/a>/
+        );
+    }
+
     const freeCompanyId = get(/\/lodestone\/freecompany\/(\d+)\//);
 
     // Parse job (kept your row login; selector name sometimes differs, so allow flexible matching)
@@ -565,7 +634,9 @@ export async function searchLodestoneFreeCompanies(name: string, world?: string,
         };
 
         if (parsed.dc) entry.dc = parsed.dc;
-        if (tagText) entry.tag = tagText.replace(/[\[\]]/g, '').trim();
+
+        const normalizedTag = extractFreeCompanyTagFromHtml(tagText);
+        if (normalizedTag) entry.tag = normalizedTag;
 
         results.push(entry);
         seen.add(id);
@@ -593,10 +664,13 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
         return null;
     }
 
-    let name = extractWithPatterns(html, [
-        /class="[^"]*freecompany__header__name[^"]*"[^>]*>([\s\S]*?)<\/h[12]>/i,
+    const nameRaw = extractWithPatterns(html, [
+        /class="[^"]*freecompany__text__name[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
         /<h2[^>]*class="[^"]*freecompany__name[^"]*"[^>]*>([\s\S]*?)<\/h2>/i,
+        /class="[^"]*freecompany__text__name[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
     ]);
+
+    let name = nameRaw.replace(/\s*[«<\[][^«»<>\[\]]{1,12}[»>\]]$/u, '').trim();
 
     if (!name) {
         const ogTitleMatch = /<meta[^>]+property=['"]og:title['"][^>]+content=['"]([^'"<>]+)['"][^>]*>/i.exec(html);
@@ -612,12 +686,7 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
         return null;
     }
 
-    const tagRaw = extractWithPatterns(html, [
-        /class="[^"]*(?:freecompany__header__tag|freecompany__nickname)[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
-        /Tag:\s*<span[^>]*>([\s\S]*?)<\/span>/i,
-        /\[([^\]]{1,10})\]/,
-    ]);
-    const tag = tagRaw ? tagRaw.replace(/[\[\]]/g, '').trim() : '';
+    const tag = extractFreeCompanyTagFromHtml(html);
 
     const slogan = extractWithPatterns(html, [
         /class="[^"]*(?:freecompany__message|freecompany__slogan|freecompany__text__message)[^"]*"[^>]*>([\s\S]*?)<\/(?:div|p)>/i,

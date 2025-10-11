@@ -287,7 +287,7 @@ async function respondCompanyAutocomplete(interaction: AutocompleteInteraction) 
         })
         .slice(0, 25)
         .map(entry => {
-            const tag = entry.tag ? ` «${entry.tag}»` : '';
+            const tag = entry.tag ? ` <${entry.tag}>` : '';
             const location = entry.world ? ` @ ${entry.world}` : '';
             return {
                 name: `${entry.name}${tag}${location}`.slice(0, 100),
