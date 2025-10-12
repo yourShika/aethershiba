@@ -165,10 +165,52 @@ function setCacheEntry<T>(map: Map<string, CacheEntry<T>>, key: string, value: T
 }
 
 function parseWorldAndDc(raw: string): { world: string; dc: string } {
-    const match = /(.*?)(?:\s*\[([^\]]+)\])?$/.exec(raw.trim());
-    const world = match?.[1]?.trim() ?? raw.trim();
-    const dc = match?.[2]?.trim() ?? "";
-    return { world, dc };
+    const trimmed = raw.trim();
+    if (!trimmed) return { world: "", dc: "" };
+
+    const normalizedInput = decodeEntities(trimmed).replace(/<br\s*\/?/gi, "\n");
+    const lines = normalizedInput
+        .split(/[\r\n]+/)
+        .map(line => line.replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+
+    const sanitizeToken = (value: string) => value.replace(/^[^0-9A-Za-z'-]+|[^0-9A-Za-z'-]+$/g, "");
+
+    const extractFromLine = (line: string): { world: string; dc: string } | null => {
+        const dcMatch = /\[([^\]]+)\](?!.*\[)/.exec(line);
+        if (!dcMatch) return null;
+
+        const dc = sanitizeToken(dcMatch[1] ?? "").trim();
+        const before = line.slice(0, dcMatch.index).trim();
+        if (!dc && !before) return null;
+
+        let world = "";
+        if (before) {
+            const tokens = before.split(/\s+/).filter(Boolean);
+            for (let i = tokens.length - 1; i >= 0; i -= 1) {
+                const candidate = sanitizeToken(tokens[i] ?? "");
+                if (candidate) {
+                    world = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (world || dc) return { world, dc };
+        return null;
+    };
+
+    for (const line of lines) {
+        const parsed = extractFromLine(line);
+        if (parsed) return parsed;
+    }
+
+    const fallbackLine = lines[0] ?? normalizedInput.replace(/\s+/g, " ").trim();
+    if (!fallbackLine) return { world: "", dc: "" };
+
+    const tokens = fallbackLine.split(/\s+/).filter(Boolean);
+    const world = sanitizeToken(tokens[0] ?? fallbackLine);
+    return { world, dc: "" };
 }
 
 function toAbsoluteUrl(url: string): string {
