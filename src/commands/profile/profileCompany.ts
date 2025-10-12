@@ -225,7 +225,7 @@ function buildFreeCompanyEmbed(
         company.datacenter ? `[${company.datacenter}]` : '',
     ].filter(Boolean).join(' ');
     if (locationLine) {
-        embed.setDescription(`${locationLine} (World & Datacenter)`);
+        embed.setDescription(`${locationLine}`);
     }
 
     const sloganLines: string[] = [];

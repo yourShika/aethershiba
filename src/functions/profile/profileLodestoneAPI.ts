@@ -111,20 +111,23 @@ function normalizeFreeCompanyTag(raw: string | undefined): string {
 function extractFreeCompanyTagFromHtml(html: string): string {
     if (!html) return "";
 
-    const elementMatch = /<(?<tag>p|span|div)[^>]*class="[^"]*freecompany__text__tag[^"]*"[^>]*>([\s\S]*?)<\/\k<tag>>/i.exec(html);
-    if (elementMatch?.[2]) {
+    const elementRe = /<(?<tag>p|span|div)[^>]*class="[^"]*freecompany__text__tag[^"]*"[^>]*>([\s\S]*?)<\/\k<tag>>/gi;
+    let elementMatch: RegExpExecArray | null;
+    while ((elementMatch = elementRe.exec(html)) !== null) {
         const candidate = normalizeFreeCompanyTag(stripTags(elementMatch[2] ?? ""));
         if (candidate && isMeaningfulFreeCompanyTag(candidate)) return candidate;
     }
 
-    const dataAttrMatch = /class="[^"]*freecompany__text__tag[^"]*"[^>]*data-(?:fc-)?tag=['"]([^'"<>]{1,16})['"]/i.exec(html);
-    if (dataAttrMatch?.[1]) {
+    const dataAttrRe = /class="[^"]*freecompany__text__tag[^"]*"[^>]*data-(?:fc-)?tag=['"]([^'"<>]{1,16})['"]/gi;
+    let dataAttrMatch: RegExpExecArray | null;
+    while ((dataAttrMatch = dataAttrRe.exec(html)) !== null) {
         const candidate = normalizeWhitespace(decodeEntities(dataAttrMatch[1] ?? ""));
         if (isMeaningfulFreeCompanyTag(candidate)) return candidate;
     }
 
-    const labelMatch = /Company\s*Tag[^«<\[]*([«<\[][\s\S]*?[»>\]])/i.exec(html);
-    if (labelMatch?.[1]) {
+    const labelRe = /Company\s*Tag[^«<\[]*([«<\[][\s\S]*?[»>\]])/gi;
+    let labelMatch: RegExpExecArray | null;
+    while ((labelMatch = labelRe.exec(html)) !== null) {
         const candidate = normalizeFreeCompanyTag(stripTags(labelMatch[1] ?? ""));
         if (candidate && isMeaningfulFreeCompanyTag(candidate)) return candidate;
     }
@@ -769,13 +772,21 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
     let worldName = parsed.world || worldRaw;
 
     if (!worldName) {
-        const gcText = extractWithPatterns(html, [
-            /class="[^"]*entry__freecompany__gc[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
-        ]);
-        if (gcText) {
-            const fallback = parseWorldAndDc(gcText);
+        const worldBlockMatch = /<p[^>]*class="[^"]*entry__freecompany__gc[^"]*"[^>]*>[\s\S]*?xiv-lds-home-world[\s\S]*?<\/p>/i.exec(html);
+        if (worldBlockMatch?.[0]) {
+            const worldText = normalizeWhitespace(stripTags(worldBlockMatch[0]));
+            const fallback = parseWorldAndDc(worldText);
             worldName = fallback.world || worldName;
             datacenter = datacenter || fallback.dc;
+        } else {
+            const gcText = extractWithPatterns(html, [
+                /class="[^"]*entry__freecompany__gc[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
+            ]);
+            if (gcText) {
+                const fallback = parseWorldAndDc(gcText);
+                worldName = fallback.world || worldName;
+                datacenter = datacenter || fallback.dc;
+            }
         }
     }
 
