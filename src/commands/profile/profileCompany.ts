@@ -51,6 +51,12 @@ const crestCache = new Map<string, CrestCacheEntry>();
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
+type SharpOverlayOptions = {
+    input: Buffer;
+    left?: number;
+    top?: number;
+};
+
 async function fetchImageBuffer(url: string): Promise<Buffer | null> {
     try {
         const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
@@ -63,6 +69,8 @@ async function fetchImageBuffer(url: string): Promise<Buffer | null> {
     }
 }
 
+type CrestOverlay = { input: Buffer; left?: number; top?: number };
+
 async function composeCrest(id: string, layers: string[]): Promise<Buffer | null> {
     if (!layers.length) return null;
     const cacheKey = layers.join('|');
@@ -72,15 +80,48 @@ async function composeCrest(id: string, layers: string[]): Promise<Buffer | null
     }
 
     const images = await Promise.all(layers.map(layer => fetchImageBuffer(layer)));
-    if (!images[0]) return null;
+    const baseBuffer = images[0];
+    if (!baseBuffer) return null;
 
     try {
-        const base = sharp(images[0]);
-        const overlays = images
+        let baseWidth: number | undefined;
+        let baseHeight: number | undefined;
+
+        try {
+            const metadata = await sharp(baseBuffer).metadata();
+            baseWidth = metadata.width ?? undefined;
+            baseHeight = metadata.height ?? undefined;
+        } catch (error) {
+            logger.debug('Failed to read Free Company crest base metadata', error);
+        }
+
+        const overlays = (await Promise.all(images
             .slice(1)
-            .filter((buf): buf is Buffer => Boolean(buf))
-            .map(buf => ({ input: buf}));
-        const composed = await base.composite(overlays).png().toBuffer();
+            .map(async (buf) => {
+                if (!buf) return null;
+
+                const overlay: SharpOverlayOptions = { input: buf };
+
+                if (baseWidth !== undefined && baseHeight !== undefined) {
+                    try {
+                        const meta = await sharp(buf).metadata();
+                        if (meta.width !== undefined && meta.height !== undefined) {
+                            const left = Math.floor((baseWidth - meta.width) / 2);
+                            const top = Math.floor((baseHeight - meta.height) / 2);
+                            if (Number.isFinite(left)) overlay.left = left;
+                            if (Number.isFinite(top)) overlay.top = top;
+                        }
+                    } catch (error) {
+                        logger.debug('Failed to read Free Company crest layer metadata', error);
+                    }
+                }
+
+                return overlay;
+            })
+        ))
+        .filter((overlay): overlay is SharpOverlayOptions => overlay !== null);
+
+        const composed = await sharp(baseBuffer).composite(overlays).png().toBuffer();
         crestCache.set(id, { key: cacheKey, value: composed, expires: Date.now() + CREST_CACHE_TTL });
         return composed;
     } catch (error) {

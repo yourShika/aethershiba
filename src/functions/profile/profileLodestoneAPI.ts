@@ -936,14 +936,24 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
     }
 
     const crestLayers: string[] = [];
-    const crestRe = /freecompany__crest__image[^>]*>[\s\S]*?<img[^>]+(?:src|data-src|data-lazy-src|data-original)=['"]([^'"\s]+)['"]/gi;
-    let crestMatch: RegExpExecArray | null;
-    while ((crestMatch = crestRe.exec(html)) !== null) {
-        const src = crestMatch[1];
-        if (!src) continue;
-        const absolute = toAbsoluteUrl(src);
-        if (!absolute) continue;
-        if (!crestLayers.includes(absolute)) crestLayers.push(absolute);
+    const crestBaseMatch = /<img[^>]*class="[^"]*(?:entry__)?freecompany__crest__base[^"]*"[^>]*?(?:src|data-src|data-lazy-src|data-original)=['"]([^'"\s]+)['"]/i.exec(html);
+    if (crestBaseMatch?.[1]) {
+        const absolute = toAbsoluteUrl(crestBaseMatch[1]);
+        if (absolute) crestLayers.push(absolute);
+    }
+    const crestContainerRe = /<div[^>]*class="[^"]*freecompany__crest__image[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+    let crestContainerMatch: RegExpExecArray | null;
+    while ((crestContainerMatch = crestContainerRe.exec(html)) !== null) {
+        const block = crestContainerMatch[1] ?? '';
+        const crestImageRe = /<img[^>]+(?:src|data-src|data-lazy-src|data-original)=['"]([^'"\s]+)['"][^>]*>/gi;
+        let crestImageMatch: RegExpExecArray | null;
+        while ((crestImageMatch = crestImageRe.exec(block)) !== null) {
+            const src = crestImageMatch[1];
+            if (!src) continue;
+            const absolute = toAbsoluteUrl(src);
+            if (!absolute) continue;
+            if (!crestLayers.includes(absolute)) crestLayers.push(absolute);
+        }
     }
 
     const reputation: LodestoneFreeCompanyReputation[] = [];
