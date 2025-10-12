@@ -244,8 +244,17 @@ function extractTemporalValue(html: string): string {
         }
     }
 
-    const scriptMatch = /ldst_strftime\(\s*['"]([^'"()]+)['"]/i.exec(html);
-    if (scriptMatch?.[1]) return scriptMatch[1];
+    const scriptMatch = /ldst_strftime\(\s*(['"]?)([^'"(),\s]+)\1/i.exec(html);
+    if (scriptMatch?.[2]) {
+        const raw = scriptMatch[2];
+        const numeric = Number(raw);
+        if (!Number.isNaN(numeric) && numeric > 0) {
+            const ms = numeric > 1e12 ? numeric : numeric * 1000;
+            const date = new Date(ms);
+            if (!Number.isNaN(date.getTime())) return date.toISOString();
+        }
+        return raw;
+    }
 
     return '';
 }
@@ -259,7 +268,12 @@ function collectDefinitions(html: string): Map<string, string[]> {
         const rawValue = match[2] ?? "";
         const valueText = normalizeWhitespace(stripTags(rawValue));
         const temporalValue = extractTemporalValue(rawValue);
-        const cleanedValue = valueText && !/^[-—–]+$/.test(valueText) ? valueText : '';
+
+        let sanitizedValue = valueText;
+        if (sanitizedValue && /document\./i.test(sanitizedValue)) {
+            sanitizedValue = sanitizedValue.split(/document\./i)[0]?.trim() ?? '';
+        }
+        const cleanedValue = sanitizedValue && !/^[-—–]+$/.test(sanitizedValue) ? sanitizedValue : '';
         const value = cleanedValue || temporalValue;
         if (!key) continue;
         const lcKey = key.toLowerCase();
@@ -339,6 +353,17 @@ function parseDate(value: string): Date | null {
     if (!trimmed) return null;
     const ts = Date.parse(trimmed);
     if (!Number.isNaN(ts)) return new Date(ts);
+
+    const ldstMatch = /ldst_strftime\(\s*(['"]?)(\d{5,})\1/i.exec(trimmed);
+    if (ldstMatch?.[2]) {
+        const raw = Number(ldstMatch[2]);
+        if (!Number.isNaN(raw) && raw > 0) {
+            const ms = raw > 1e12 ? raw : raw * 1000;
+            const date = new Date(ms);
+            if (!Number.isNaN(date.getTime())) return date;
+        }
+    }
+    
     const match = /(\d{4})[\/.](\d{1,2})[\/.](\d{1,2})/.exec(trimmed);
     if (match) {
         const [, year, month, day] = match;
@@ -349,6 +374,24 @@ function parseDate(value: string): Date | null {
             return new Date(Date.UTC(y, m - 1, d));
         }
     }
+
+    const dayFirstMatch = /^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})$/.exec(trimmed);
+    if (dayFirstMatch) {
+        const [, first, second, yearPartRaw] = dayFirstMatch;
+        if (!first || !second || !yearPartRaw) return null;
+        const day = Number(first);
+        const month = Number(second);
+        let year = Number(yearPartRaw);
+
+        if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year)) return null;
+        if (yearPartRaw.length === 2) year += year >= 70 ? 1900 : 2000;
+        if (day < 1 || day > 31) return null;
+        if (month < 1 || month > 12) return null;
+
+        const date = new Date(Date.UTC(year, month - 1, day));
+        if (!Number.isNaN(date.getTime())) return date;
+    }
+
     return null;
 }
 
