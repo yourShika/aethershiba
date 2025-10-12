@@ -230,6 +230,20 @@ const extractWithPatterns = (source: string, patterns: RegExp[]): string => {
     return "";
 };
 
+const extractAllWithPatterns = (source: string, patterns: RegExp[]): string[] => {
+    for (const pattern of patterns) {
+        const results: string[] = [];
+        pattern.lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = pattern.exec(source)) !== null) {
+            const text = match?.[1] ? normalizeWhitespace(stripTags(match[1])) : "";
+            if (text) results.push(text);
+        }
+        if (results.length) return results;
+    }
+    return [];
+};
+
 function extractTemporalValue(html: string): string {
     const timeAttrMatch = /(?:data-)?(?:time|datetime|ldst(?:_time)?|ldsttime)=['"]([^'"<>]+)['"]/i.exec(html);
     if (timeAttrMatch?.[1]) return timeAttrMatch[1];
@@ -348,7 +362,7 @@ function parseFocusIconSections(html: string): LodestoneFreeCompanyFocus[] {
     return resluts;
 }
 
-function parseDate(value: string): Date | null {
+function parseDate(value: string): Date | null { 
     const trimmed = value.trim();
     if (!trimmed) return null;
     const ts = Date.parse(trimmed);
@@ -363,7 +377,7 @@ function parseDate(value: string): Date | null {
             if (!Number.isNaN(date.getTime())) return date;
         }
     }
-    
+
     const match = /(\d{4})[\/.](\d{1,2})[\/.](\d{1,2})/.exec(trimmed);
     if (match) {
         const [, year, month, day] = match;
@@ -960,17 +974,40 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
             /<h3[^>]*>([\s\S]*?)<\/h3>/i,
         ]);
         const estateTitle = extractWithPatterns(block, [
-            /class="[^"]*estate__title[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div|h[1-6])>/i,
+            /class="[^"]*(?:estate__title|freecompany__estate__title)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div|h[1-6])>/i,
         ]);
-        const estateInfo = extractWithPatterns(block, [
-            /class="[^"]*(?:estate__text|freecompany__estate__txt)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
-            /<p[^>]*>([\s\S]*?)<\/p>/i,
+        const estateInfoLines = extractAllWithPatterns(block, [
+            /class="[^"]*(?:estate__text|freecompany__estate__txt|freecompany__estate__text)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/gi,
+            /<p[^>]*>([\s\S]*?)<\/p>/gi,
         ]);
+        const estateInfo = estateInfoLines.join('\n');
         if (estateName || estateInfo) {
             estate = {
                 name: estateName ?? '',
                 info: [estateTitle, estateInfo].filter(Boolean).join('\n'),
             };
+        }
+    } else {
+        const fallbackBlockMatch = /<h3[^>]*class="[^"]*heading--lead[^"]*"[^>]*>\s*Estate Profile\s*<\/h3>([\s\S]*?)(?=<h3[^>]*class="[^"]*heading--lead[^"]*"[^>]*>|$)/i.exec(html);
+        const block = fallbackBlockMatch?.[1] ?? '';
+        if (block) {
+            const estateName = extractWithPatterns(block, [
+                /class="[^"]*(?:estate__name|freecompany__estate__name)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div|h[1-6])>/i,
+            ]);
+            const estateTitle = extractWithPatterns(block, [
+                /class="[^"]*(?:estate__title|freecompany__estate__title)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div|h[1-6])>/i,
+            ]);
+            const estateInfoLines = extractAllWithPatterns(block, [
+                /class="[^"]*(?:estate__text|freecompany__estate__txt|freecompany__estate__text)[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/gi,
+                /<p[^>]*>([\s\S]*?)<\/p>/gi,
+            ]);
+            const estateInfo = estateInfoLines.join('\n');
+            if (estateName || estateInfo) {
+                estate = {
+                    name: estateName ?? '',
+                    info: [estateTitle, estateInfo].filter(Boolean).join('\n'),
+                };
+            }
         }
     }
 
