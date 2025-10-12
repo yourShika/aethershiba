@@ -3,6 +3,9 @@
 // -------------------------------------------------
 // Dependencies
 // -------------------------------------------------
+import { fetch } from "undici";
+import { z } from "zod";
+
 import { logger } from "../../lib/logger";
 
 export interface ClassJob {
@@ -28,10 +31,11 @@ export interface LodestoneCharacter {
 }
 
 const UA = "Mozilla/5.0 (compatible; AetherShiba/1.0)";
+const HTTP_OPTIONS = { headers: { "user-agent": UA } } as const;
 
 async function fetchText(url: string): Promise<string | null> {
     try {
-        const res = await fetch(url, { headers: { "user-agent": UA  }});
+        const res = await fetch(url, HTTP_OPTIONS);
 
         if (!res.ok) return null;
         return await res.text();
@@ -306,9 +310,9 @@ function parseDate(value: string): Date | null {
 export interface LodestoneFreeCompanySearchResult {
     id: string;
     name: string;
-    tag?: string;
+    tag?: string | undefined;
     world: string;
-    dc?: string;
+    dc?: string | undefined;
 }
 
 export interface LodestoneFreeCompanyReputation {
@@ -351,6 +355,55 @@ export interface LodestoneFreeCompanyMember {
     name: string;
     rank: string;
 }
+
+const FreeCompanyReputationSchema = z.object({
+    name: z.string().optional().default(""),
+    value: z.string().optional().default(""),
+});
+
+const FreeCompanyFocusSchema = z.object({
+    name: z.string().optional().default(""),
+    status: z.string().optional().default(""),
+});
+
+const FreeCompanyEstateSchema = z.object({
+    name: z.string().optional().default(""),
+    info: z.string().optional().default(""),
+});
+
+const FreeCompanySchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    tag: z.string().optional().default(""),
+    datacenter: z.string().optional().default(""),
+    world: z.string(),
+    slogan: z.string().optional().default(""),
+    formed: z.string().optional().default(""),
+    formedAt: z.date().nullable(),
+    activeMembers: z.number().int().nonnegative().nullable(),
+    recruitment: z.string().optional().default(""),
+    rank: z.string().optional().default(""),
+    ranking: z.string().optional().default(""),
+    reputation: z.array(FreeCompanyReputationSchema),
+    estate: FreeCompanyEstateSchema.nullable(),
+    focus: z.array(FreeCompanyFocusSchema),
+    seeking: z.array(FreeCompanyFocusSchema),
+    crestLayers: z.array(z.string()),
+});
+
+const FreeCompanySearchResultSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    tag: z.string().optional(),
+    world: z.string(),
+    dc: z.string().optional(),
+});
+
+const FreeCompanyMemberSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    rank: z.string().optional().default(""),
+});
 
 function parseToggleList(html: string, itemClass: string): LodestoneFreeCompanyFocus[] {
     const regex = new RegExp(`<li[^>]*class="[^"]*${itemClass}[^"]*"[^>]*>[\\s\\S]*?<\\/li>`, 'gi');
@@ -657,8 +710,10 @@ export async function searchLodestoneFreeCompanies(name: string, world?: string,
         if (results.length >= 25) break;
     }
 
-    setCacheEntry(FC_SEARCH_CACHE, key, results, FC_SEARCH_TTL);
-    return results;
+    const validatedResults = FreeCompanySearchResultSchema.array().parse(results);
+
+    setCacheEntry(FC_SEARCH_CACHE, key, validatedResults, FC_SEARCH_TTL);
+    return validatedResults;
 }
 
 export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFreeCompany | null> {
@@ -797,7 +852,7 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
             /class="[^"]*freecompany__reputation__rank[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div)>/i,
             /title=['"]([^'"\n]+)['"]/i,
         ]);
-        if (repName || repValue) reputation.push({ name: repName, value: repValue });
+        if (repName || repValue) reputation.push({ name: repName ?? '', value: repValue ?? '' });
     }
 
     const estateMatch = /<(?:section|div)[^>]*class="[^"]*freecompany__estate[^"]*"[^>]*>([\s\S]*?)<\/(?:section|div)>/i.exec(html);
@@ -817,7 +872,7 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
         ]);
         if (estateName || estateInfo) {
             estate = {
-                name: estateName,
+                name: estateName ?? '',
                 info: [estateTitle, estateInfo].filter(Boolean).join('\n'),
             };
         }
@@ -856,10 +911,12 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
         crestLayers,
     };
 
-    setCacheEntry(FC_DETAIL_CACHE, key, freeCompany, FC_DETAIL_TTL);
-    return freeCompany;
+    const validatedCompany = FreeCompanySchema.parse(freeCompany);
+
+    setCacheEntry(FC_DETAIL_CACHE, key, validatedCompany, FC_DETAIL_TTL);
+    return validatedCompany;
 }
-    
+
 export async function fetchLodestoneFreeCompanyMembers(id: string, limit = 20): Promise<LodestoneFreeCompanyMember[] | null> {
     const normalizedLimit = Math.max(1, Math.min(limit, 50));
     const key = `${id.trim()}:${normalizedLimit}`;
@@ -896,12 +953,14 @@ export async function fetchLodestoneFreeCompanyMembers(id: string, limit = 20): 
             /<span[^>]*class="[^"]*rank[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
         ]);
 
-        members.push({ id: memberId, name, rank });
+        members.push({ id: memberId, name: name ?? '', rank: rank ?? '' });
         if (members.length >= normalizedLimit) break;
     }
 
-    setCacheEntry(FC_MEMBER_CACHE, key, members, FC_MEMBER_TTL);
-    return members;
+    const validatedMembers = FreeCompanyMemberSchema.array().parse(members);
+
+    setCacheEntry(FC_MEMBER_CACHE, key, validatedMembers, FC_MEMBER_TTL);
+    return validatedMembers;
 }
     
 
