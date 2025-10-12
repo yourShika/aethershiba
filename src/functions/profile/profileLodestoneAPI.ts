@@ -71,12 +71,24 @@ function stripTags(input: string): string {
 
 const normalizeWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
 
+function isMeaningfulFreeCompanyTag(value: string | undefined): value is string {
+    if (!value) return false;
+    const normalized = normalizeWhitespace(value);
+    if (!normalized) return false;
+    if (/^(?:company|tag|company\s*tag)$/i.test(normalized)) return false;
+    if (!/[0-9a-z]/i.test(normalized)) return false;
+    return true;
+}
+
 function normalizeFreeCompanyTag(raw: string | undefined): string {
     if (!raw) return "";
     const decoded = normalizeWhitespace(decodeEntities(raw));
 
     const bracketMatch = /[«<\[]\s*([^«»<>\[\]]{1,12})\s*[»>\]]/.exec(decoded);
-    if (bracketMatch?.[1]) return bracketMatch[1].trim();
+    if (bracketMatch?.[1]) {
+        const candidate = bracketMatch[1].trim();
+        if (isMeaningfulFreeCompanyTag(candidate)) return candidate;
+    }
 
     const withoutLabel = decoded.replace(/(?:free\s*)?company\s*tag:?/gi, "").trim();
     const words = withoutLabel
@@ -85,10 +97,11 @@ function normalizeFreeCompanyTag(raw: string | undefined): string {
         .filter(Boolean);
     for (let i = words.length - 1; i >= 0; i -= 1) {
         const candidate = words[i];
-        if (candidate && candidate.length <= 12) return candidate;
+        if (candidate && candidate.length <= 12 && isMeaningfulFreeCompanyTag(candidate)) return candidate;
     }
 
-    return withoutLabel.replace(/[«»\[\]]/g, "").trim();
+    const fallback = withoutLabel.replace(/[«»\[\]]/g, "").trim();
+    return isMeaningfulFreeCompanyTag(fallback) ? fallback : "";
 }
 
 function extractFreeCompanyTagFromHtml(html: string): string {
@@ -97,23 +110,23 @@ function extractFreeCompanyTagFromHtml(html: string): string {
     const elementMatch = /<(?<tag>p|span|div)[^>]*class="[^"]*freecompany__text__tag[^"]*"[^>]*>([\s\S]*?)<\/\k<tag>>/i.exec(html);
     if (elementMatch?.[2]) {
         const candidate = normalizeFreeCompanyTag(stripTags(elementMatch[2] ?? ""));
-        if (candidate) return candidate;
+        if (candidate && isMeaningfulFreeCompanyTag(candidate)) return candidate;
     }
 
     const dataAttrMatch = /class="[^"]*freecompany__text__tag[^"]*"[^>]*data-(?:fc-)?tag=['"]([^'"<>]{1,16})['"]/i.exec(html);
     if (dataAttrMatch?.[1]) {
         const candidate = normalizeWhitespace(decodeEntities(dataAttrMatch[1] ?? ""));
-        if (candidate) return candidate;
+        if (isMeaningfulFreeCompanyTag(candidate)) return candidate;
     }
 
     const labelMatch = /Company\s*Tag[^«<\[]*([«<\[][\s\S]*?[»>\]])/i.exec(html);
     if (labelMatch?.[1]) {
         const candidate = normalizeFreeCompanyTag(stripTags(labelMatch[1] ?? ""));
-        if (candidate) return candidate;
+        if (candidate && isMeaningfulFreeCompanyTag(candidate)) return candidate;
     }
 
     const fallback = normalizeFreeCompanyTag(stripTags(html));
-    if (fallback && !/^(?:company|tag|company\s*tag)$/i.test(fallback)) return fallback;
+    if (fallback && isMeaningfulFreeCompanyTag(fallback)) return fallback;
 
     return "";
 }
