@@ -109,7 +109,9 @@ function formatFocusList(
     const filtered = activeOnly
         ? items.filter(item => {
             if (!item.status) return true;
-            return /active/i.test(item.status);
+            const status = item.status.trim().toLowerCase();
+            if (/inactive/.test(status)) return false;
+            return /active/.test(status);
         })
         : items;
 
@@ -291,7 +293,7 @@ function buildFreeCompanyEmbed(
         includeStatus: false,
     });
     if (focus) {
-        embed.addFields({ name: 'Focus (ONLY ACTIVE)', value: truncate(focus), inline: false });
+        embed.addFields({ name: 'Focus', value: truncate(focus), inline: false });
     }
 
     const memberList = formatMembers(members);

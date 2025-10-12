@@ -74,7 +74,7 @@ export const companyEmojis: Record<string, string> = {
     dungeons: '<:Dungeons:1418907897944866911>',
     pvp: '<:PvP:1418907884669898752>',
     leveling: '<:Leveling:1418907839434461244>',
-    'role playing': '<:RolePlaying:1418907831611949066>',
+    roleplaying: '<:RolePlaying:1418907831611949066>',
     hardcore: '<:Hardcore:1418907822044876892>',
 };
 
