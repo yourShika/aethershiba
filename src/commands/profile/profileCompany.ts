@@ -5,7 +5,13 @@
 // -------------------------------------------------
 
 
-import { 
+import { fetch } from "undici";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+
+dayjs.extend(utc);
+
+import {
     AttachmentBuilder,
     AutocompleteInteraction,
     ChatInputCommandInteraction,
@@ -101,7 +107,10 @@ function formatFocusList(
     if (!items.length) return '';
 
     const filtered = activeOnly
-        ? items.filter(item => item.status?.toLowerCase() === 'active' || item.status === '')
+        ? items.filter(item => {
+            if (!item.status) return true;
+            return /active/i.test(item.status);
+        })
         : items;
 
     if (!filtered.length) return '';
@@ -143,10 +152,15 @@ function formatReputation(reputation: LodestoneFreeCompany['reputation']): strin
 
 function formatFormed(formed: string, formedAt: Date | null): string {
     if (formedAt) {
-        return new Intl.DateTimeFormat('en-GB').format(formedAt);
+        return dayjs(formedAt).utc().format('DD/MM/YYYY');
     }
     if (formed && formed.includes('document.')) {
         return '-';
+    }
+
+    const parsed = dayjs(formed);
+    if (parsed.isValid()) {
+        return parsed.utc().format('DD/MM/YYYY');
     }
 
     return formed || '-';
@@ -154,11 +168,35 @@ function formatFormed(formed: string, formedAt: Date | null): string {
 
 function formatRanking(value: string | undefined): string {
     if (!value) return '';
-    return value
+    const parts = value
         .split(/;+/)
         .map(part => part.trim())
         .filter(Boolean)
-        .join('\n');
+        .map(part => part.replace(/\s+/g, ' '));
+
+    if (!parts.length) return '';
+
+    const lowerParts = parts.map(part => ({ raw: part, lower: part.toLowerCase() }));
+    const pick = (pattern: RegExp) => lowerParts.find(entry => pattern.test(entry.lower))?.raw;
+    const weekly = pick(/weekly/);
+    const weeklyPrev = pick(/previous week/);
+    const monthly = pick(/monthly/);
+    const monthlyPrev = pick(/previous month/);
+
+    const lines: string[] = [];
+    if (weekly) {
+        const suffix = weeklyPrev && weeklyPrev !== weekly ? ` (${weeklyPrev})` : '';
+        lines.push(weekly + suffix);
+    }
+    if (monthly) {
+        const suffix = monthlyPrev && monthlyPrev !== monthly ? ` (${monthlyPrev})` : '';
+        lines.push(monthly + suffix);
+    }
+
+    const remaining = parts.filter(part => ![weekly, weeklyPrev, monthly, monthlyPrev].includes(part));
+    lines.push(...remaining);
+
+    return lines.join('\n');
 }
 
 function buildFreeCompanyEmbed(
@@ -182,48 +220,86 @@ function buildFreeCompanyEmbed(
         embed.setThumbnail(company.crestLayers[0]);
     }
 
-    const descriptionParts: string[] = [];
-    const location = [company.world, company.datacenter ? `(${company.datacenter})` : '']
-        .filter(Boolean)
-        .join(' ')
-        .trim();
-    if (location) descriptionParts.push(location);
-    if (company.slogan) descriptionParts.push(company.slogan);
-    if (descriptionParts.length) {
-        embed.setDescription(descriptionParts.join('\n'));
+    const locationLine = [
+        company.world,
+        company.datacenter ? `[${company.datacenter}]` : '',
+    ].filter(Boolean).join(' ');
+    if (locationLine) {
+        embed.setDescription(`${locationLine} (World & Datacenter)`);
     }
 
+    const sloganLines: string[] = [];
+    if (company.slogan) {
+        const links = Array.from(new Set(company.slogan.match(/https?:\/\/\S+/g) ?? []));
+        let sloganText = company.slogan;
+        for (const link of links) {
+            sloganText = sloganText.replace(link, '').trim();
+        }
+        if (sloganText) sloganLines.push(truncate(sloganText));
+        sloganLines.push(...links.map(link => `>${link}`));
+    }
+
+    const sloganValue = sloganLines.length
+        ? truncate(sloganLines.join('\n'))
+        : '—';
+    embed.addFields({ name: 'Slogan', value: sloganValue, inline: false });
+
     embed.addFields(
-        { name: 'Recruitment', value: company.recruitment || '—', inline: true },
+        { name: 'Recruitment', value: company.recruitment || 'Closed', inline: true },
         { name: 'Rank', value: company.rank || '—', inline: true },
-        { name: 'Active Members', value: typeof company.activeMembers === 'number'
-            ? company.activeMembers.toLocaleString()
-            : '—', inline: true },
+        {
+            name: 'Active Members',
+            value: typeof company.activeMembers === 'number'
+                ? company.activeMembers.toLocaleString()
+                : '—',
+            inline: true,
+        },
         { name: 'Formed', value: formatFormed(company.formed, company.formedAt), inline: true },
     );
 
     const ranking = formatRanking(company.ranking);
     if (ranking) {
-        embed.addFields({ name: 'Ranking', value: ranking, inline: false});
+        embed.addFields({ name: 'Ranking', value: ranking, inline: false });
     }
 
     const reputation = formatReputation(company.reputation);
-    if (reputation) embed.addFields({ name: 'Reputation', value: reputation, inline: false });
+    if (reputation) {
+        embed.addFields({ name: 'Reputation', value: reputation, inline: false });
+    }
 
-    const estateParts = [company.estate?.name, company.estate?.info]
-        .filter((part): part is string => Boolean(part && part.trim()))
-        .join('\n');
-    embed.addFields({ name: 'Estate Profile', value: truncate(estateParts) || '—', inline: false });
+    const estateLines: string[] = [];
+    if (company.estate?.name) {
+        estateLines.push(company.estate.name);
+    }
+    const estateInfo = company.estate?.info
+        ?.split('\n')
+        .map(line => line.trim())
+        .filter(Boolean) ?? [];
+    if (estateInfo.length) {
+        if (estateLines.length) estateLines.push('');
+        estateLines.push(...estateInfo);
+    }
+    embed.addFields({
+        name: 'Estate Profile',
+        value: truncate(estateLines.join('\n')) || '—',
+        inline: false,
+    });
 
     const focus = formatFocusList(company.focus, {
         activeOnly: true,
         includeEmoji: true,
         includeStatus: false,
     });
-    if (focus) embed.addFields({ name: 'Focus', value: truncate(focus), inline: false});
+    if (focus) {
+        embed.addFields({ name: 'Focus (ONLY ACTIVE)', value: truncate(focus), inline: false });
+    }
 
     const memberList = formatMembers(members);
-    if (memberList) embed.addFields({ name: `Featured Members`, value: memberList, inline: false });
+    if (memberList) {
+        embed.addFields({ name: 'Featured Members', value: memberList, inline: false });
+    }
+
+    embed.setFooter({ text: `Lodestone • ${dayjs().utc().format('DD/MM/YYYY HH:mm [UTC]')}` });
 
     return embed;
 }
