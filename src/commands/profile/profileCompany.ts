@@ -12,10 +12,14 @@ import utc from "dayjs/plugin/utc";
 dayjs.extend(utc);
 
 import {
+    ActionRowBuilder,
     AttachmentBuilder,
     AutocompleteInteraction,
+    ButtonBuilder,
+    ButtonStyle,
     ChatInputCommandInteraction,
     Colors,
+    ComponentType,
     EmbedBuilder,
     MessageFlags,
     SlashCommandSubcommandBuilder,
@@ -34,6 +38,7 @@ import {
 } from '../../functions/profile/profileLodestoneAPI';
 import { logger } from "../../lib/logger";
 import { getCompanyEmoji, getCityEmoji } from "../../const/emojis";
+import { PROFILE_PREFIX } from "../../const/constants";
 
 // Constants and Types
 const USER_AGENT = 'Mozilla/5.0 (compatible; AetherShiba/1.0)';
@@ -176,10 +181,100 @@ function formatMembers(members: LodestoneFreeCompanyMember[]): string {
     if (!members.length) return '';
     const formatted = members.map(member => {
         const profileUrl = `https://eu.finalfantasyxiv.com/lodestone/character/${member.id}/`;
-        const rank = member.rank ? ` — ${member.rank}` : '';
-        return `• [${member.name}](${profileUrl})${rank}`;
+        const details: string[] = [];
+        if (member.rank) details.push(`Rank: ${member.rank}`);
+        if (member.classJob) details.push(`Class: ${member.classJob}`);
+        const location = [member.world, member.datacenter ? `[${member.datacenter}]` : '']
+            .filter(Boolean)
+            .join(' ');
+        if (location) details.push(`World: ${location}`);
+        const detailsLine = details.length ? ` - ${details.join(' • ')}` : '';
+        return `• [${member.name}](${profileUrl})${detailsLine}`;
     }).join('\n');
     return truncate(formatted, 1024);
+}
+
+function formatMemberEntry(member: LodestoneFreeCompanyMember): string {
+    const profileUrl = `https://eu.finalfantasyxiv.com/lodestone/character/${member.id}/`;
+    const header = `**[${member.name}](${profileUrl})**`;
+    const detailParts: string[] = [];
+    if (member.rank) detailParts.push(`Rank: ${member.rank}`);
+    if (member.classJob) detailParts.push(`Class: ${member.classJob}`);
+    const location = [member.world, member.datacenter ? `[${member.datacenter}]` : '']
+        .filter(Boolean)
+        .join(' ');
+    if (location) detailParts.push(`World: ${location}`);
+    const details = detailParts.length ? detailParts.join(' • ') : '—';
+    return `${header}\n${details}`;
+}
+
+function buildMembersEmbeds(
+    company: LodestoneFreeCompany,
+    members: LodestoneFreeCompanyMember[],
+    crestName?: string,
+): EmbedBuilder[] {
+    const crestUrl = crestName
+        ? `attachment://${crestName}`
+        : company.crestLayers[0] ?? undefined;
+
+    if (!members.length) {
+        const embed = new EmbedBuilder()
+            .setColor(Colors.Blurple)
+            .setTitle(`${company.name} - Members (0)`)
+            .setURL(`https://eu.finalfantasyxiv.com/lodestone/freecompany/${company.id}/member/`)
+            .setDescription('No members were listed on the Lodestone.')
+            .setTimestamp();
+        if (crestUrl) embed.setThumbnail(crestUrl);
+        embed.setFooter({ text: `Lodestone • ${dayjs().utc().format('DD/MM/YYYY HH:mm [UTC]')}` });
+        return [embed];
+    }
+
+    const entries = members.map(formatMemberEntry).filter(Boolean);
+    const chunks: string[][] = [];
+    let current: string[] = [];
+    let currentLength = 0;
+    const MAX_PAGE_LENGTH = 3500;
+    const MAX_PER_PAGE = 10;
+
+    for (const entry of entries) {
+        const additionLength = entry.length + (current.length ? 2 : 0);
+        if (
+            current.length >= MAX_PER_PAGE ||
+            (currentLength + additionLength) > MAX_PAGE_LENGTH
+        ) {
+            if (current.length) {
+                chunks.push(current);
+                current = [];
+                currentLength = 0;
+            }
+        }
+        current.push(entry);
+        currentLength += additionLength;
+    }
+
+    if (current.length) {
+        chunks.push(current);
+    }
+
+    if (!chunks.length) {
+        chunks.push([]);
+    }
+
+    const totalPages = chunks.length;
+    return chunks.map((chunk, index) => {
+        const description = chunk.length ? chunk.join('\n\n') : 'No members were listed on the Lodestone.';
+        const embed = new EmbedBuilder()
+            .setColor(Colors.Blurple)
+            .setTitle(`${company.name} — Members (${members.length})`)
+            .setURL(`https://eu.finalfantasyxiv.com/lodestone/freecompany/${company.id}/member/`)
+            .setDescription(description)
+            .setTimestamp()
+            .setFooter({
+                text: `Lodestone • ${dayjs().utc().format('DD/MM/YYYY HH:mm [UTC]')} • Page ${index + 1}/${totalPages}`,
+            });
+        if (crestUrl) embed.setThumbnail(crestUrl);
+        return embed;
+    });
 }
 
 function formatReputation(reputation: LodestoneFreeCompany['reputation']): string {
@@ -264,8 +359,8 @@ function buildFreeCompanyEmbed(
     }
 
     const locationLine = [
-        company.world,
-        company.datacenter ? `[${company.datacenter}]` : '',
+        company.world ? `🌐 ${company.world}` : '',
+        company.datacenter ? ` <${company.datacenter}>` : '',
     ].filter(Boolean).join(' ');
     if (locationLine) {
         embed.setDescription(`${locationLine}`);
@@ -285,29 +380,29 @@ function buildFreeCompanyEmbed(
     const sloganValue = sloganLines.length
         ? truncate(sloganLines.join('\n'))
         : '—';
-    embed.addFields({ name: 'Slogan', value: sloganValue, inline: false });
+    embed.addFields({ name: '📝 Slogan', value: sloganValue, inline: false });
 
     embed.addFields(
-        { name: 'Recruitment', value: company.recruitment || 'Closed', inline: true },
-        { name: 'Rank', value: company.rank || '—', inline: true },
+        { name: '📣 Recruitment', value: company.recruitment || 'Closed', inline: true },
+        { name: '🏅 Rank', value: company.rank || '—', inline: true },
         {
-            name: 'Active Members',
+            name: '👥 Active Members',
             value: typeof company.activeMembers === 'number'
                 ? company.activeMembers.toLocaleString()
                 : '—',
             inline: true,
         },
-        { name: 'Formed', value: formatFormed(company.formed, company.formedAt), inline: true },
+        { name: '📅 Formed', value: formatFormed(company.formed, company.formedAt), inline: true },
     );
 
     const ranking = formatRanking(company.ranking);
     if (ranking) {
-        embed.addFields({ name: 'Ranking', value: ranking, inline: false });
+        embed.addFields({ name: '📈 Ranking', value: ranking, inline: false });
     }
 
     const reputation = formatReputation(company.reputation);
     if (reputation) {
-        embed.addFields({ name: 'Reputation', value: reputation, inline: false });
+        embed.addFields({ name: '🏛️ Reputation', value: reputation, inline: false });
     }
 
     const estateLines: string[] = [];
@@ -323,7 +418,7 @@ function buildFreeCompanyEmbed(
         estateLines.push(...estateInfo);
     }
     embed.addFields({
-        name: 'Estate Profile',
+        name: '🏠 Estate Profile',
         value: truncate(estateLines.join('\n')) || '—',
         inline: false,
     });
@@ -334,13 +429,13 @@ function buildFreeCompanyEmbed(
         includeStatus: false,
     });
     if (focus) {
-        embed.addFields({ name: 'Focus', value: truncate(focus), inline: false });
+        embed.addFields({ name: '🎯 Focus', value: truncate(focus), inline: false });
     }
 
-    const memberList = formatMembers(members);
-    if (memberList) {
-        embed.addFields({ name: 'Featured Members', value: memberList, inline: false });
-    }
+    //const memberList = formatMembers(members);
+    //if (memberList) {
+    //    embed.addFields({ name: '⭐ Featured Members', value: memberList, inline: false });
+    //}
 
     embed.setFooter({ text: `Lodestone • ${dayjs().utc().format('DD/MM/YYYY HH:mm [UTC]')}` });
 
@@ -407,9 +502,8 @@ async function respondCompanyAutocomplete(interaction: AutocompleteInteraction) 
         .slice(0, 25)
         .map(entry => {
             const tag = entry.tag ? ` <${entry.tag}>` : '';
-            const location = entry.world ? ` @ ${entry.world}` : '';
             return {
-                name: `${entry.name}${tag}${location}`.slice(0, 100),
+                name: `${entry.name}${tag}`.slice(0, 100),
                 value: entry.id,
             };
         });
@@ -498,14 +592,122 @@ const sub: Sub = {
         const attachment = await buildCrestAttachment(company);
         const crestName = attachment?.name ?? undefined;
 
-        const members = await fetchLodestoneFreeCompanyMembers(company.id, 10) ?? [];
-        const embed = buildFreeCompanyEmbed(company, members, crestName);
+        const members = await fetchLodestoneFreeCompanyMembers(company.id, 512) ?? [];
+        const infoEmbed = buildFreeCompanyEmbed(company, members.slice(0, 10), crestName);
+        const memberEmbeds = buildMembersEmbeds(company, members, crestName);
 
-        if (attachment) {
-            await interaction.editReply({ embeds: [embed], files: [attachment] });
-        } else {
-            await interaction.editReply({ embeds: [embed] });
+        const getMemberEmbed = (index: number): EmbedBuilder => {
+            const safeIndex = Math.max(0, Math.min(index, memberEmbeds.length - 1));
+            return memberEmbeds[safeIndex]!;
+        };
+
+        const baseId = `${PROFILE_PREFIX}company:${interaction.id}`;
+        const infoId = `${baseId}:info`;
+        const membersId = `${baseId}:members`;
+        const prevId = `${baseId}:prev`;
+        const nextId = `${baseId}:next`;
+        
+        let currentView: 'info' | 'members' = 'info';
+        let memberPage = 0;
+
+        const buildComponents = (view: 'info' | 'members', page: number) => {
+            const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+            const viewRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+                new ButtonBuilder()
+                    .setCustomId(infoId)
+                    .setLabel('Guild Info')
+                    .setStyle(view === 'info' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+                    .setDisabled(view === 'info'),
+                new ButtonBuilder()
+                    .setCustomId(membersId)
+                    .setLabel('Members')
+                    .setStyle(view === 'members' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+                    .setDisabled(view === 'members'),
+            );
+            rows.push(viewRow);
+
+        if (view === 'members' && memberEmbeds.length > 1) {
+            rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+                new ButtonBuilder()
+                    .setCustomId(prevId)
+                    .setEmoji('⬅️')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(page <= 0),
+                new ButtonBuilder()
+                    .setCustomId(nextId)
+                    .setEmoji('➡️')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(page >= memberEmbeds.length - 1),
+            ));
         }
+
+        return rows;
+};
+
+const initialComponents = buildComponents(currentView, memberPage);
+const relyOptions = {
+    embeds: [infoEmbed],
+    components: initialComponents,
+    files: attachment ? [attachment] : [],
+} as const;
+
+const message = await interaction.editReply(relyOptions);
+
+const collector = message.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    time: 120_000, 
+});
+
+collector.on('collect', async (btn) => {
+    if (btn.user.id !== interaction.user.id) {
+        await btn.reply({
+            content: 'This interaction is not for you.',
+            flags: MessageFlags.Ephemeral,
+        });
+        return;
+    }
+
+    if (btn.customId === infoId) {
+        currentView = 'info';
+        const components = buildComponents(currentView, memberPage);
+        await btn.update({ embeds: [infoEmbed], components });
+        return;
+    }
+
+    if (btn.customId === membersId) {
+        currentView = 'members';
+        memberPage = 0;
+        const components = buildComponents(currentView, memberPage);
+        await btn.update({ embeds: [getMemberEmbed(memberPage)], components });
+        return;
+    }
+
+    if (currentView !== 'members') {
+        await btn.deferUpdate();
+        return;
+    }
+
+    if (btn.customId === prevId) {
+        memberPage = Math.max(0, memberPage - 1);
+    }
+
+    if (btn.customId === nextId) {
+        memberPage = Math.min(memberEmbeds.length - 1, memberPage + 1);
+    }
+
+    const components = buildComponents(currentView, memberPage);
+    await btn.update({ embeds: [getMemberEmbed(memberPage)], components });
+});
+
+collector.on('end', async () => {
+    try {
+        await message.edit({ components: [] });
+    } catch {
+
+    }
+});
+
+
     },
     autocomplete: async (interaction) => {
         const focused = interaction.options.getFocused(true);

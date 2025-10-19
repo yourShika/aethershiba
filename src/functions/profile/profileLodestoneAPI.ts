@@ -456,6 +456,9 @@ export interface LodestoneFreeCompanyMember {
     id: string;
     name: string;
     rank: string;
+    world: string;
+    datacenter: string;
+    classJob: string;
 }
 
 const FreeCompanyReputationSchema = z.object({
@@ -505,6 +508,9 @@ const FreeCompanyMemberSchema = z.object({
     id: z.string(),
     name: z.string(),
     rank: z.string().optional().default(""),
+    world: z.string().optional().default(""),
+    datacenter: z.string().optional().default(""),
+    classJob: z.string().optional().default(""),
 });
 
 function parseToggleList(html: string, itemClass: string): LodestoneFreeCompanyFocus[] {
@@ -1060,44 +1066,91 @@ export async function fetchLodestoneFreeCompany(id: string): Promise<LodestoneFr
     return validatedCompany;
 }
 
-export async function fetchLodestoneFreeCompanyMembers(id: string, limit = 20): Promise<LodestoneFreeCompanyMember[] | null> {
-    const normalizedLimit = Math.max(1, Math.min(limit, 50));
+export async function fetchLodestoneFreeCompanyMembers(id: string, limit = 200): Promise<LodestoneFreeCompanyMember[] | null> {
+    const normalizedLimit = Math.max(1, Math.min(limit, 512));
     const key = `${id.trim()}:${normalizedLimit}`;
     const cached = getCacheEntry(FC_MEMBER_CACHE, key);
     if (cached) return cached;
 
-    const url = `https://eu.finalfantasyxiv.com/lodestone/freecompany/${id}/member/`;
-    logger.debug(`Fetching Lodestone free company members: ${url}`);
-
-    const html = await fetchText(url);
-    if (!html) return [];
-
     const members: LodestoneFreeCompanyMember[] = [];
     const seen = new Set<string>();
-    const entryRe = /<li[^>]*class="[^"]*(?:entry__freecompany__member|entry__member)[^"]*"[^>]*>([\s\S]*?)<\/li>/gi;
-    let match: RegExpExecArray | null;
+    let page = 1;
 
-    while ((match = entryRe.exec(html)) !== null) {
-        const block = match[1] ?? '';
-        const anchor = /<a[^>]*href=['"]\/lodestone\/character\/(\d+)(?:\/)?['"][^>]*>([\s\S]*?)<\/a>/i.exec(block);
-        if (!anchor) continue;
-        const memberId = anchor[1];
-        if (!memberId || seen.has(memberId)) continue;
-        seen.add(memberId);
+    while (members.length < normalizedLimit) {
+        const url = page === 1
+            ? `https://eu.finalfantasyxiv.com/lodestone/freecompany/${id}/member/`
+            : `https://eu.finalfantasyxiv.com/lodestone/freecompany/${id}/member/?page=${page}`;
+        
+        logger.debug(`Fetching Lodestone free company members: ${url}`);
 
-        const inner = anchor[2] ?? '';
-        const name = extractWithPatterns(inner, [
-            /class="[^"]*(?:entry__name|freecompany__member__name|entry__character__name)[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
-            /<p[^>]*>([\s\S]*?)<\/p>/i,
-        ]) || normalizeWhitespace(stripTags(inner));
+        const html = await fetchText(url);
+        if (!html) break;
 
-        const rank = extractWithPatterns(block, [
-            /class="[^"]*(?:entry__freecompany__rank|freecompany__member__rank)[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
-            /<span[^>]*class="[^"]*rank[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
-        ]);
+        const entryRe = /<li[^>]*class="[^"]*(?:entry__freecompany__member|entry__member)[^"]*"[^>]*>([\s\S]*?)<\/li>/gi;
+        let match: RegExpExecArray | null;
+        let fetchedThisRound = 0;
 
-        members.push({ id: memberId, name: name ?? '', rank: rank ?? '' });
-        if (members.length >= normalizedLimit) break;
+        while ((match = entryRe.exec(html)) !== null) {
+            const block = match[1] ?? '';
+            const anchor = /<a[^>]*href=['"]\/lodestone\/character\/(\d+)(?:\/)?['"][^>]*>([\s\S]*?)<\/a>/i.exec(block);
+            if (!anchor) continue;
+            const memberId = anchor[1];
+            if (!memberId || seen.has(memberId)) continue;
+            seen.add(memberId);
+
+            const inner = anchor[2] ?? '';
+            const name = extractWithPatterns(inner, [
+                /class="[^"]*(?:entry__name|freecompany__member__name|entry__character__name)[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
+                /<p[^>]*>([\s\S]*?)<\/p>/i,
+            ]) || normalizeWhitespace(stripTags(inner));
+
+            const rank = extractWithPatterns(block, [
+                /class="[^"]*(?:entry__freecompany__rank|freecompany__member__rank)[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
+                /<span[^>]*class="[^"]*rank[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
+            ]);
+
+            const worldLine = extractWithPatterns(block, [
+                /class="[^"]*entry__world[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
+            ]);
+            const worldText = normalizeWhitespace(stripTags(worldLine ?? ''));
+            const worldMatch = /([^\[]+)(?:\[([^\]]+)\])?/.exec(worldText || '');
+            const world = normalizeWhitespace(worldMatch?.[1] ?? '');
+            const datacenter = normalizeWhitespace(worldMatch?.[2] ?? '');
+
+            const classMatch = /<li[^>]*>([\s\S]*?<i[^>]*class="[^"]*list__ic__class[^"]*"[\s\S]*?)<\/li>/i.exec(block);
+            let classJob = '';
+            if (classMatch) {
+                const classBlock = classMatch[0] ?? '';
+                const className = extractWithPatterns(classBlock, [
+                    /data-tooltip=['"]([^'"\n]+)['"]/i,
+                    /title=['"]([^'"\n]+)['"]/i,
+                    /alt=['"]([^'"\n]+)['"]/i,
+                ]);
+                const levelText = extractWithPatterns(classBlock, [
+                    /<span[^>]*>([\s\S]*?)<\/span>/i,
+                ]) || '';
+                const level = normalizeWhitespace(stripTags(levelText));
+                const cleanName = normalizeWhitespace(className ?? '');
+                const parts = [cleanName, level ? `Lv${level}` : ''].filter(Boolean);
+                classJob = parts.join(' ');
+            }
+
+            members.push({
+                id: memberId,
+                name: name ?? '',
+                rank: rank ?? '',
+                world,
+                datacenter,
+                classJob,
+            });
+            fetchedThisRound += 1;
+
+            if (members.length >= normalizedLimit) break;
+        }
+
+        if (fetchedThisRound === 0) break;
+        page += 1;
+
     }
 
     const validatedMembers = FreeCompanyMemberSchema.array().parse(members);
