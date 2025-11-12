@@ -183,7 +183,6 @@ function formatMembers(members: LodestoneFreeCompanyMember[]): string {
         const profileUrl = `https://eu.finalfantasyxiv.com/lodestone/character/${member.id}/`;
         const details: string[] = [];
         if (member.rank) details.push(`Rank: ${member.rank}`);
-        if (member.classJob) details.push(`Class: ${member.classJob}`);
         const location = [member.world, member.datacenter ? `[${member.datacenter}]` : '']
             .filter(Boolean)
             .join(' ');
@@ -199,7 +198,6 @@ function formatMemberEntry(member: LodestoneFreeCompanyMember): string {
     const header = `**[${member.name}](${profileUrl})**`;
     const detailParts: string[] = [];
     if (member.rank) detailParts.push(`Rank: ${member.rank}`);
-    if (member.classJob) detailParts.push(`Class: ${member.classJob}`);
     const location = [member.world, member.datacenter ? `[${member.datacenter}]` : '']
         .filter(Boolean)
         .join(' ');
