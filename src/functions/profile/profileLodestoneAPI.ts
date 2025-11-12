@@ -75,6 +75,58 @@ function stripTags(input: string): string {
 
 const normalizeWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
 
+function extractListItems(html: string, classPattern: RegExp): string[] {
+    if (!html) return [];
+
+    const items: string[] = [];
+    const liStartRe = /<li\b[^>]*>/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = liStartRe.exec(html)) !== null) {
+        const openTag = match[0];
+        classPattern.lastIndex = 0;
+        if (!classPattern.test(openTag)) continue;
+
+        const openTagEnd = liStartRe.lastIndex;
+        let depth = 1;
+        let cursor = openTagEnd;
+
+        while (depth > 0 && cursor < html.length) {
+            const nextOpen = html.indexOf("<li", cursor);
+            const nextClose = html.indexOf("</li", cursor);
+
+            if (nextClose === -1) {
+                cursor = html.length;
+                break;
+            }
+
+            if (nextOpen !== -1 && nextOpen < nextClose) {
+                depth += 1;
+                cursor = nextOpen + 3;
+                continue;
+            }
+
+            const closeEnd = html.indexOf('>', nextClose);
+            if (closeEnd === -1) {
+                cursor = html.length;
+                break;
+            }
+
+            depth -= 1;
+            cursor = closeEnd + 1;
+
+            if (depth === 0) {
+                const inner = html.slice(openTagEnd, nextClose);
+                items.push(inner);
+                liStartRe.lastIndex = cursor;
+                break;
+            }
+        }
+    }
+
+    return items;
+}
+
 function isMeaningfulFreeCompanyTag(value: string | undefined): value is string {
     if (!value) return false;
     const normalized = normalizeWhitespace(value);
@@ -1086,12 +1138,10 @@ export async function fetchLodestoneFreeCompanyMembers(id: string, limit = 200):
         const html = await fetchText(url);
         if (!html) break;
 
-        const entryRe = /<li[^>]*class="[^"]*(?:entry__freecompany__member|entry__member)[^"]*"[^>]*>([\s\S]*?)<\/li>/gi;
-        let match: RegExpExecArray | null;
+        const entryBlocks = extractListItems(html, /class=(['"])\s*[\s\S]*?\bentry(?:__freecompany__member|__member)?\b[\s\S]*?\1/i);
         let fetchedThisRound = 0;
 
-        while ((match = entryRe.exec(html)) !== null) {
-            const block = match[1] ?? '';
+        for (const block of entryBlocks) {
             const anchor = /<a[^>]*href=['"]\/lodestone\/character\/(\d+)(?:\/)?['"][^>]*>([\s\S]*?)<\/a>/i.exec(block);
             if (!anchor) continue;
             const memberId = anchor[1];
@@ -1100,24 +1150,24 @@ export async function fetchLodestoneFreeCompanyMembers(id: string, limit = 200):
 
             const inner = anchor[2] ?? '';
             const name = extractWithPatterns(inner, [
-                /class="[^"]*(?:entry__name|freecompany__member__name|entry__character__name)[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
+                /class=['"][^'"\n]*(?:entry__name|freecompany__member__name|entry__character__name)[^'"\n]*['"][^>]*>([\s\S]*?)<\/p>/i,
                 /<p[^>]*>([\s\S]*?)<\/p>/i,
             ]) || normalizeWhitespace(stripTags(inner));
 
             const rank = extractWithPatterns(block, [
-                /class="[^"]*(?:entry__freecompany__rank|freecompany__member__rank)[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
-                /<span[^>]*class="[^"]*rank[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
+                /class=['"][^'"\n]*(?:entry__freecompany__rank|freecompany__member__rank)[^'"\n]*['"][^>]*>([\s\S]*?)<\/p>/i,
+                /<span[^>]*class=['"][^'"\n]*rank[^'"\n]*['"][^>]*>([\s\S]*?)<\/span>/i,
             ]);
 
             const worldLine = extractWithPatterns(block, [
-                /class="[^"]*entry__world[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
+                /class=['"][^'"\n]*entry__world[^'"\n]*['"][^>]*>([\s\S]*?)<\/p>/i,
             ]);
             const worldText = normalizeWhitespace(stripTags(worldLine ?? ''));
             const worldMatch = /([^\[]+)(?:\[([^\]]+)\])?/.exec(worldText || '');
             const world = normalizeWhitespace(worldMatch?.[1] ?? '');
             const datacenter = normalizeWhitespace(worldMatch?.[2] ?? '');
 
-            const classMatch = /<li[^>]*>([\s\S]*?<i[^>]*class="[^"]*list__ic__class[^"]*"[\s\S]*?)<\/li>/i.exec(block);
+            const classMatch = /<li[^>]*>([\s\S]*?<i[^>]*class=['"][^'"\n]*list__ic__class[^'"\n]*['"][\s\S]*?)<\/li>/i.exec(block);
             let classJob = '';
             if (classMatch) {
                 const classBlock = classMatch[0] ?? '';
