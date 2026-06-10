@@ -1,5 +1,5 @@
 {
-  "name": "aerthershiba",
+  "name": "aethershiba",
   "version": "1.0.0",
   "description": "<h1 align=\"center\">AetherShiba — Discord Bot for Final Fantasy XIV</h1>",
   "main": "index.js",
@@ -11,15 +11,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/KamilBura/aerthershiba.git"
+    "url": "git+https://github.com/yourShika/aethershiba.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/KamilBura/aerthershiba/issues"
+    "url": "https://github.com/yourShika/aethershiba/issues"
   },
-  "homepage": "https://github.com/KamilBura/aerthershiba#readme",
+  "homepage": "https://github.com/yourShika/aethershiba#readme",
   "dependencies": {
     "chalk": "^5.5.0",
     "dayjs": "^1.11.18",
