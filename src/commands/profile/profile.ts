@@ -11,16 +11,14 @@ import {
     type SlashCommandSubcommandBuilder,
     type AutocompleteInteraction
 } from 'discord.js';
-import type { Command } from '../../handlers/commandHandler';
-
-// Command Import
-import link from './profileLink';
-import me from './profileMe';
-import inspect from './profileSearch';
-import search from './profileInspect';
-import company from './profileCompany';
-import unlink from './profileUnlink';
-import { UNKNOWN_COMMAND } from '../../const/messages';
+import type { Command } from '../../handlers/commandHandler.js';
+import link from './profileLink.js';
+import me from './profileMe.js';
+import inspect from './profileSearch.js';
+import search from './profileInspect.js';
+import company from './profileCompany.js';
+import unlink from './profileUnlink.js';
+import { UNKNOWN_COMMAND } from '../../const/messages.js';
 
 // Define Subcommand Build
 type Sub = {

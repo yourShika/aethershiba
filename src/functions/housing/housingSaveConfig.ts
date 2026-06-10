@@ -1,7 +1,6 @@
 // functions/housing/housingSaveConfig.ts
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { dataFile, legacyDataFile, readJsonWithLegacy, writeJson } from "../../lib/dataStore.js";
 
 // ---------------------------------------------------
 // Types & Path
@@ -14,11 +13,9 @@ import { join } from "node:path";
  */
 type Entry = { key: string; ts: number };
 
-// Base directory for guild-specific configs.
-const dir = () => join(process.cwd(), 'src', 'guildconfig');
-
 // File path for storing "seen" housing entries of a guild.
-const file = (guildID: string) => join(dir(), `${guildID}_housing_seen.json`);
+const file = (guildID: string) => dataFile('guildconfig', `${guildID}_housing_seen.json`);
+const legacyFile = (guildID: string) => legacyDataFile('..', 'guildconfig', `${guildID}_housing_seen.json`);
 
 // ---------------------------------------------------
 // Load / Save Helpers
@@ -31,10 +28,8 @@ const file = (guildID: string) => join(dir(), `${guildID}_housing_seen.json`);
  * @returns empty array if file does not exist or is invalid
  */
 async function load(g: string): Promise<Entry[]> {
-    try { return JSON.parse(await readFile(file(g), 'utf8')) as Entry[]; }
-    catch {
-        return [];
-    }
+    const entries = await readJsonWithLegacy<Entry[]>(file(g), legacyFile(g), []);
+    return Array.isArray(entries) ? entries : [];
 }
 
 /**
@@ -45,8 +40,7 @@ async function load(g: string): Promise<Entry[]> {
  * @param arr - Entries
  */
 async function save(g: string, arr: Entry[]) {
-    await mkdir(dir(), { recursive: true });
-    await writeFile(file(g), JSON.stringify(arr, null, 2));
+    await writeJson(file(g), arr);
 }
 
 // ---------------------------------------------------

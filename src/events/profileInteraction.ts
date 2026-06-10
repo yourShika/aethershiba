@@ -23,17 +23,18 @@ import {
     clearToken,
     extractLodestoneId,
     getToken,
+    normalizeLodestoneCharacterUrl,
     TOKEN_LIFETIME,
-} from '../functions/profile/profileLodestoneVerification';
+} from '../functions/profile/profileLodestoneVerification.js';
 import {
     addProfile,
     getProfilebyLodestoneId,
     getProfileByUser,
-} from '../functions/profile/profileStore';
+} from '../functions/profile/profileStore.js';
 
-import { PROFILE_PREFIX } from "../const/constants";
-import { tokenEmbed, successEmbed } from "../embeds/profileEmbeds";
-import { ACCOUNT_USED, ALREADY_LINKED, UNABLE_ACCESS, VERIFICATION_CANCELED } from "../const/messages";
+import { PROFILE_PREFIX } from "../const/constants.js";
+import { tokenEmbed, successEmbed } from "../embeds/profileEmbeds.js";
+import { ACCOUNT_USED, ALREADY_LINKED, UNABLE_ACCESS, VERIFICATION_CANCELED } from "../const/messages.js";
 
 const linkInteractions = new Map<string, ButtonInteraction>();
 
@@ -120,11 +121,11 @@ export function register(client: Client) {
             const id = interaction.customId;
             
             if (id === `${PROFILE_PREFIX}link:submit`) {
-                const url = interaction.fields.getTextInputValue('url').trim();
+                const url = normalizeLodestoneCharacterUrl(interaction.fields.getTextInputValue('url'));
 
-                const lodestoneId = extractLodestoneId(url);
+                const lodestoneId = url ? extractLodestoneId(url) : null;
 
-                if (!lodestoneId) {
+                if (!url || !lodestoneId) {
                     await interaction.reply({
                         content: 'Invalid Lodestone URL.',
                         flags: MessageFlags.Ephemeral,
@@ -149,7 +150,10 @@ export function register(client: Client) {
                 }
 
                 try {
-                    const res = await fetch(url);
+                    const res = await fetch(url, {
+                        headers: { 'user-agent': 'AetherShiba/1.0' },
+                        signal: AbortSignal.timeout(10_000),
+                    });
                     if (!res.ok) throw new Error('status');
                 } catch {
                     await interaction.reply({

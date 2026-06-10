@@ -260,7 +260,7 @@ export function register(client: Client) {
                         const chBuilder = new ChannelSelectMenuBuilder()
                             .setCustomId(HOUSING_PREFIX + 'channel')
                             .setPlaceholder('Zielkanal')
-                            .addChannelTypes(ChannelType.GuildText);
+                            .addChannelTypes(ChannelType.GuildForum);
                         if (channel) chBuilder.setDefaultChannels(channel.id);
 
                         const chRow = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(chBuilder);
@@ -412,4 +412,3 @@ export function register(client: Client) {
 
 // Export as default to the client
 export default { register };
-

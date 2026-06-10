@@ -1,13 +1,9 @@
 // functions/profile/profileStore.ts
 
-// -------------------------------------------------
-// Dependecies
-// -------------------------------------------------
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { dataFile, legacyDataFile, readJsonWithLegacy, writeJson } from "../../lib/dataStore.js";
 
-const DIR = join(process.cwd(), 'src', 'json');
-const FILE = join(DIR, 'profiles.json');
+const FILE = dataFile('profiles.json');
+const LEGACY_FILE = legacyDataFile('profiles.json');
 
 export interface Profile {
     userId: string;
@@ -18,30 +14,13 @@ export interface Profile {
     verifiedAt: number;
 }
 
-async function ensureFile() {
-    await mkdir(DIR, { recursive: true });
-
-    try {
-        await readFile(FILE, 'utf8');
-    } catch {
-        await writeFile(FILE, '[]', 'utf8');
-    }
-}
-
 export async function loadProfiles(): Promise<Profile[]> {
-    await ensureFile();
-    const txt = await readFile(FILE, 'utf8');
-
-    try {
-        return JSON.parse(txt) as Profile[];
-    } catch {
-        return [];
-    }
+    const profiles = await readJsonWithLegacy<Profile[]>(FILE, LEGACY_FILE, []);
+    return Array.isArray(profiles) ? profiles : [];
 }
 
 export async function saveProfiles(profiles: Profile[]): Promise<void> {
-    await ensureFile();
-    await writeFile(FILE, JSON.stringify(profiles, null, 2), 'utf8');
+    await writeJson(FILE, profiles);
 }
 
 export async function getProfileByUser(userId:string): Promise<Profile | undefined> {
@@ -56,6 +35,19 @@ export async function getProfilebyLodestoneId(id:string): Promise<Profile | unde
 
 export async function addProfile(profile:Profile): Promise<void> {
     const profiles = await loadProfiles();
-    profiles.push(profile);
+    const existing = profiles.findIndex(p => p.userId === profile.userId || p.lodestoneId === profile.lodestoneId);
+    if (existing >= 0) {
+        profiles[existing] = profile;
+    } else {
+        profiles.push(profile);
+    }
     await saveProfiles(profiles);
+}
+
+export async function removeProfileByUser(userId: string): Promise<Profile | null> {
+    const profiles = await loadProfiles();
+    const next = profiles.filter(p => p.userId !== userId);
+    if (next.length === profiles.length) return null;
+    await saveProfiles(next);
+    return profiles.find(p => p.userId === userId) ?? null;
 }

@@ -1,7 +1,7 @@
 // functions/housing/housingProvider.paissa.ts
 
 import { z } from "zod";
-import { getWorldIdByName } from "./housingWorlds";
+import { getWorldIdByName } from "./housingWorlds.js";
 
 // Possible lottery state returned/derived from PaissaDB
 export type LotteryState = 'none'|'preparation'|'running'|'results';

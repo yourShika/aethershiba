@@ -4,6 +4,7 @@ import type {
   Client,
   Interaction,
   SlashCommandBuilder,
+  SlashCommandSubcommandsOnlyBuilder,
   ChatInputCommandInteraction,
   AutocompleteInteraction,
 } from 'discord.js';
@@ -15,7 +16,7 @@ import type {
  */
 export interface Command {
     /** Builder describing the slash command and its options. */
-    data: SlashCommandBuilder;
+    data: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder;
 
     /** Function executed when the command is invoked. */
     execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
@@ -85,4 +86,3 @@ export class CommandHandler {
  * so commands are registered consistently.
  */
 export const commandHandler = new CommandHandler();
-

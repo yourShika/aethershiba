@@ -12,10 +12,10 @@ import {
     ButtonBuilder,
     ButtonStyle
 } from 'discord.js';
-import { linkStartEmbed } from '../../embeds/profileEmbeds';
-import { getProfileByUser } from '../../functions/profile/profileStore';
-import { PROFILE_PREFIX } from '../../const/constants';
-import { ALREADY_LINKED } from '../../const/messages';
+import { linkStartEmbed } from '../../embeds/profileEmbeds.js';
+import { getProfileByUser } from '../../functions/profile/profileStore.js';
+import { PROFILE_PREFIX } from '../../const/constants.js';
+import { ALREADY_LINKED } from '../../const/messages.js';
 
 type Sub = {
     name: string;

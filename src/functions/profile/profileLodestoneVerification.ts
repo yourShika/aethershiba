@@ -5,7 +5,7 @@
 // -------------------------------------------------
 
 import { randomBytes } from "node:crypto";
-import { logger } from "../../lib/logger";
+import { logger } from "../../lib/logger.js";
 
 export const TOKEN_LIFETIME = 60 * 60 * 1000; // 60 Minutes
 
@@ -102,6 +102,32 @@ export async function verifyToken(userId: string) {
 }
 
 export function extractLodestoneId(url: string): string | null {
-    const m = url.match(/lodestone\/character\/(\d+)\/?/);
+    const normalized = normalizeLodestoneCharacterUrl(url);
+    if (!normalized) return null;
+
+    const m = normalized.match(/\/lodestone\/character\/(\d+)\/?$/);
     return m ? m[1]! : null;
+}
+
+export function normalizeLodestoneCharacterUrl(input: string): string | null {
+    try {
+        const url = new URL(input.trim());
+        const host = url.hostname.toLowerCase();
+        const allowedHosts = new Set([
+            'eu.finalfantasyxiv.com',
+            'na.finalfantasyxiv.com',
+            'jp.finalfantasyxiv.com',
+            'de.finalfantasyxiv.com',
+            'fr.finalfantasyxiv.com',
+        ]);
+
+        if (url.protocol !== 'https:' || !allowedHosts.has(host)) return null;
+
+        const match = /^\/lodestone\/character\/(\d+)\/?$/.exec(url.pathname);
+        if (!match) return null;
+
+        return `https://${host}/lodestone/character/${match[1]}/`;
+    } catch {
+        return null;
+    }
 }

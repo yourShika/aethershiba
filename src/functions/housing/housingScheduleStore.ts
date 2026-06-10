@@ -1,7 +1,6 @@
 // functions/housing/housingScheduleStore.ts
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import path from 'node:path';
+import { dataFile, legacyDataFile, readJsonWithLegacy, writeJson } from '../../lib/dataStore.js';
 
 export type SlotConfig = {
   timezone?: string;
@@ -10,25 +9,15 @@ export type SlotConfig = {
   x3?: string;
 };
 
-const scheduleFile = path.join(process.cwd(), 'src', 'json', 'housing_schedule.json');
-
-async function ensureDir() {
-  await mkdir(path.dirname(scheduleFile), { recursive: true });
-}
+const scheduleFile = dataFile('housing_schedule.json');
+const legacyScheduleFile = legacyDataFile('housing_schedule.json');
 
 export async function loadSchedules(): Promise<Record<string, SlotConfig>> {
-  try {
-    const raw = await readFile(scheduleFile, 'utf8');
-    const data = JSON.parse(raw) as Record<string, SlotConfig>;
-    return data ?? {};
-  } catch {
-    return {};
-  }
+  return readJsonWithLegacy(scheduleFile, legacyScheduleFile, {});
 }
 
 export async function saveSchedules(data: Record<string, SlotConfig>) {
-  await ensureDir();
-  await writeFile(scheduleFile, JSON.stringify(data, null, 2), 'utf8');
+  await writeJson(scheduleFile, data);
 }
 
 export async function clearGuildSchedule(guildId: string) {

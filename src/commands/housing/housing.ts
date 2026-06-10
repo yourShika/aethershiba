@@ -6,15 +6,15 @@ import {
   type SlashCommandSubcommandBuilder,
   type AutocompleteInteraction,
 } from "discord.js";
-import type { Command } from "../../handlers/commandHandler";
+import type { Command } from "../../handlers/commandHandler.js";
 
 // Import all housing-related subcommands
-import setup from './housingSetup';
-import refresh from './housingRefresh';
-import research from './housingResearch';
-import info from './housingInfo';
-import reset from './housingReset';
-import { UNKNOWN_COMMAND } from "../../const/messages";
+import setup from './housingSetup.js';
+import refresh from './housingRefresh.js';
+import research from './housingResearch.js';
+import info from './housingInfo.js';
+import reset from './housingReset.js';
+import { UNKNOWN_COMMAND } from "../../const/messages.js";
 
 // ---------------------------------------------------
 // Subcommand type

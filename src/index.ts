@@ -11,6 +11,7 @@ import { registerEvents } from './events/index.js';
 import { startHousingMessageWatcher } from './watchers/housingMessageWatcher.js';
 import { startHousingScheduler } from './functions/housing/housingScheduler.js';
 import { botConfig } from './config.js';
+import { startFeatureScheduler } from './functions/features/featureScheduler.js';
 
 // Ensure the Discord token is available. Without it the bot cannot start.
 const token = process.env.DISCORD_TOKEN;
@@ -35,6 +36,7 @@ commandHandler.registerAll(commands);
 registerEvents(client);
 startHousingMessageWatcher(client);
 startHousingScheduler(client);
+startFeatureScheduler(client);
 
 // Finally log in using the provided token. Any login failure is fatal.
 client.login(token).catch((e) => {

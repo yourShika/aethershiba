@@ -1,9 +1,9 @@
 // commands/admin/admin.ts
 
 import { MessageFlags, PermissionFlagsBits, SlashCommandBuilder ,type ChatInputCommandInteraction } from "discord.js";
-import { UNKNOWN_COMMAND } from "../../const/messages";
-import type { Command } from '../../handlers/commandHandler';
-import reloadCommands from './adminReloadCommand';
+import { UNKNOWN_COMMAND } from "../../const/messages.js";
+import type { Command } from '../../handlers/commandHandler.js';
+import reloadCommands from './adminReloadCommand.js';
 
 // ---------------------------------------------------
 // Subcommand declarations

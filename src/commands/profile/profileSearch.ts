@@ -13,13 +13,13 @@ import {
     AutocompleteInteraction,
 } from 'discord.js';
 
-import { DATACENTERS } from '../../const/housing';
-import { getWorldNamesByDC, fetchAllWorlds } from '../../functions/housing/housingWorlds';
-import { PROFILE_PREFIX } from '../../const/constants';
-import { UNABLE_ACCESS } from '../../const/messages';
-import { getJobEmoji, getCityEmoji, JOB_CATEGORIES, normalizeKey } from '../../const/emojis';
-import { fetchLodestoneCharacter, searchLodestoneCharacters } from '../../functions/profile/profileLodestoneAPI';
-import { getProfilebyLodestoneId } from '../../functions/profile/profileStore';
+import { DATACENTERS } from '../../const/housing.js';
+import { getWorldNamesByDC, fetchAllWorlds } from '../../functions/housing/housingWorlds.js';
+import { PROFILE_PREFIX } from '../../const/constants.js';
+import { UNABLE_ACCESS } from '../../const/messages.js';
+import { getJobEmoji, getCityEmoji, JOB_CATEGORIES, normalizeKey } from '../../const/emojis.js';
+import { fetchLodestoneCharacter, searchLodestoneCharacters } from '../../functions/profile/profileLodestoneAPI.js';
+import { getProfilebyLodestoneId } from '../../functions/profile/profileStore.js';
 
 const SEARCH_ALL_CHOICE = { name: 'Search all', value: '__all__' } as const;
 const SEARCH_ALL_KEYWORDS = ['search all', 'all'];

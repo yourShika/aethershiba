@@ -2,8 +2,6 @@
 
 import { Client, ForumChannel, ChannelType, ThreadChannel } from 'discord.js';
 import type { TextBasedChannel } from 'discord.js';
-import path from 'node:path';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { logger } from '../../lib/logger.js';
 import { configManager } from '../../handlers/configHandler.js';
 import { HousingRequired } from '../../schemas/housing.js';
@@ -11,6 +9,7 @@ import { PaissaProvider, PaissaUnavailableError, type Plot } from './housingProv
 import { plotEmbed } from '../../embeds/housingEmbeds.js';
 import { threadManager } from '../../lib/threadManager.js';
 import { plotKey, plotHash } from './housingUtils.js';
+import { dataFile, legacyDataFile, readJsonWithLegacy, writeJsonSafe } from '../../lib/dataStore.js';
 
 // ---------------------------------------------------
 // Types & Constants
@@ -38,7 +37,8 @@ type MsgRecord = {
 
 // PaissaDB API and file path for the JSON file
 const provider = new PaissaProvider();
-const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
+const filePath = dataFile('housing_messages.json');
+const legacyFilePath = legacyDataFile('housing_messages.json');
 
 // ---------------------------------------------------
 // Main: refreshHousing
@@ -121,16 +121,7 @@ export async function refreshHousing(client: Client, guildID: string) {
   // ---------------------------------------------------
   // Load persisted store (threads/messages)
   // ---------------------------------------------------
-  let store: Record<string, MsgRecord> = {};
-  try {
-    const raw = await readFile(filePath, 'utf8');
-    store = JSON.parse(raw) as Record<string, MsgRecord>;
-  } catch (e: any) {
-    logger.debug(
-      `[🏠Housing][${guildID}] Konnte ${filePath} nicht lesen oder parsen – starte mit leerem Store. Fehler: ${String(e)}`
-    );
-    store = {};
-  }
+  let store = await readJsonWithLegacy<Record<string, MsgRecord>>(filePath, legacyFilePath, {});
 
   // Ensure we have a record for this guild
   const rec: MsgRecord =
@@ -484,13 +475,10 @@ export async function refreshHousing(client: Client, guildID: string) {
  * @param guildId - guildID
  */
 async function writeSafe(fp: string, store: Record<string, MsgRecord>, guildId: string) {
-  try {
-    await mkdir(path.dirname(fp), { recursive: true });
-    await writeFile(fp, JSON.stringify(store, null, 2), 'utf8');
+  const ok = await writeJsonSafe(fp, store, `[Housing][${guildId}]`);
+  if (ok) {
     logger.debug(
       `[🏠Housing][${guildId}] State gespeichert (${fp}) | threads=${Object.keys(store[guildId]?.threads ?? {}).length} messages=${Object.keys(store[guildId]?.messages ?? {}).length}`
     );
-  } catch (e: any) {
-    logger.error(`[🏠Housing][${guildId}] Fehler beim Schreiben von ${fp}: ${String(e)}`);
   }
 }

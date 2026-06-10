@@ -5,7 +5,7 @@
 // view or modify guild-specific configuration stored via configManager.
 
 import { SlashCommandBuilder, MessageFlags, type ChatInputCommandInteraction } from "discord.js";
-import { UNKNOWN_COMMAND } from "../../const/messages";
+import { UNKNOWN_COMMAND } from "../../const/messages.js";
 
 // Shape every subcommand must follow.
 export interface ConfigSubcommand {
@@ -15,7 +15,7 @@ export interface ConfigSubcommand {
 }
 
 // Import individual config subcommands
-import housing from "./housingConfig";
+import housing from "./housingConfig.js";
 
 // Collection of supported config commands.
 // Add more here (e.g. "music", "moderation") as features grow.

@@ -6,6 +6,7 @@ import * as interactionCreate from './interactionCreate.js';
 
 import * as profileInteraction from './profileInteraction.js';
 import * as housingInteraction from './housingInteraction.js';
+import * as communityInteraction from './communityInteraction.js';
 /**
  * Register all event handlers for the bot.
  *
@@ -29,6 +30,9 @@ export function registerEvents(client: Client) {
 
     // Handles profile-specific UI interactions (customId starting with PROFILE_PREFIX)
     profileInteraction.register(client);
+
+    // Handles events, fashion voting and Triple Triad buttons.
+    communityInteraction.register(client);
     
     // Handles all other interactions: slash commands, autocomplete, unhandled UI components
     interactionCreate.register(client);

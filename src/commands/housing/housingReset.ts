@@ -1,14 +1,13 @@
 // commands/housing/housingReset.ts
 
 import { MessageFlags, type ChatInputCommandInteraction } from "discord.js";
-import { readFile, writeFile } from "fs/promises";
-import path from "path";
-import { threadManager } from "../../lib/threadManager";
-import { logger } from "../../lib/logger";
+import { threadManager } from "../../lib/threadManager.js";
+import { logger } from "../../lib/logger.js";
 import { clearHousingSchedulerState } from "../../functions/housing/housingScheduler.js";
 import { clearGuildSchedule } from "../../functions/housing/housingScheduleStore.js";
-import { clear as clearSeen } from "../../functions/housing/housingSaveConfig";
-import { ANOTHER_HOUSING_TASK_RUNNING, GUILD_ONLY, HOUSING_DATA_RESET, NO_MESSAGE_FOUND } from "../../const/messages";
+import { clear as clearSeen } from "../../functions/housing/housingSaveConfig.js";
+import { ANOTHER_HOUSING_TASK_RUNNING, GUILD_ONLY, HOUSING_DATA_RESET, NO_MESSAGE_FOUND } from "../../const/messages.js";
+import { dataFile, legacyDataFile, readJsonWithLegacy, writeJsonSafe } from "../../lib/dataStore.js";
 
 /**
  * /housing reset
@@ -66,7 +65,8 @@ export default {
             'housing:reset',
             async () => {
                 // Path to the persistent store that tracks threads/messages by guild.
-                const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
+                const filePath = dataFile('housing_messages.json');
+                const legacyFilePath = legacyDataFile('housing_messages.json');
 
                 // Load the store (safe-parse; default to empty).
                 let store: Record<string, {
@@ -75,12 +75,7 @@ export default {
                     messages: Record<string, { threadId: string; messageId: string; hash?: string; deleteAt?: number; refreshedAt?: number }>;
                     config?: { dataCenter: string; worlds: string[]; districts: string[] };
                 }> = {};
-                try {
-                    const raw = await readFile(filePath, 'utf8');
-                    store = JSON.parse(raw);
-                } catch {
-                    store = {};
-                }
+                store = await readJsonWithLegacy(filePath, legacyFilePath, store);
 
                 // Nothing to reset for this guild
                 const rec = store[guildID];
@@ -113,11 +108,7 @@ export default {
                 // Remove this guild's entry from the store and persist
                 // ---------------------------------------------------
                 delete store[guildID];
-                try {
-                    await writeFile(filePath, JSON.stringify(store, null, 2), 'utf8');
-                } catch (error) {
-                    logger.error(`[🏠Housing][${guildID}] Fehler beim Schreiben von ${filePath}: ${String(error)}`);
-                }
+                await writeJsonSafe(filePath, store, `[Housing][${guildID}]`);
 
                 await Promise.allSettled([
                     clearHousingSchedulerState(guildID),

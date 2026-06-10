@@ -10,11 +10,11 @@ import {
     ComponentType,
 } from 'discord.js';
 
-import { PROFILE_PREFIX } from '../../const/constants';
-import { PROFILE_NOT_LINKED, UNABLE_ACCESS } from '../../const/messages';
-import { getProfileByUser } from '../../functions/profile/profileStore';
-import { fetchLodestoneCharacter } from '../../functions/profile/profileLodestoneAPI';
-import { getJobEmoji, getCityEmoji, JOB_CATEGORIES, normalizeKey } from '../../const/emojis';
+import { PROFILE_PREFIX } from '../../const/constants.js';
+import { PROFILE_NOT_LINKED, UNABLE_ACCESS } from '../../const/messages.js';
+import { getProfileByUser } from '../../functions/profile/profileStore.js';
+import { fetchLodestoneCharacter } from '../../functions/profile/profileLodestoneAPI.js';
+import { getJobEmoji, getCityEmoji, JOB_CATEGORIES, normalizeKey } from '../../const/emojis.js';
 
 type Sub = {
     name: string;

@@ -6,7 +6,7 @@
 import { fetch } from "undici";
 import { z } from "zod";
 
-import { logger } from "../../lib/logger";
+import { logger } from "../../lib/logger.js";
 
 export interface ClassJob {
     name: string;
@@ -1209,4 +1209,3 @@ export async function fetchLodestoneFreeCompanyMembers(id: string, limit = 200):
     return validatedMembers;
 }
     
-

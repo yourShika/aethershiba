@@ -27,7 +27,7 @@
     "dotenv": "^17.2.1",
     "node-cron": "^4.2.1",
     "sharp": "^0.34.4",
-    "undici": "^7.16.0",
+    "undici": "^7.27.2",
     "zod": "^3.25.76"
   },
   "devDependencies": {

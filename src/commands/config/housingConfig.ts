@@ -12,14 +12,14 @@ import { ActionRowBuilder,
     MessageFlags,
     type ChatInputCommandInteraction,
  } from "discord.js";
-import type { ConfigSubcommand } from "./config";
-import { configManager } from "../../handlers/configHandler";
-import { DATACENTERS, DISTRICT_OPTIONS } from "../../const/housing";
-import { getWorldNamesByDC } from "../../functions/housing/housingWorlds";
-import { uiKey, setDraft } from "../../ui/housingUI";
+import type { ConfigSubcommand } from "./config.js";
+import { configManager } from "../../handlers/configHandler.js";
+import { DATACENTERS, DISTRICT_OPTIONS } from "../../const/housing.js";
+import { getWorldNamesByDC } from "../../functions/housing/housingWorlds.js";
+import { uiKey, setDraft } from "../../ui/housingUI.js";
 import { logError } from "../../handlers/errorHandler.js";
-import { HOUSING_PREFIX } from "../../const/constants";
-import { FAILED_CONFIG_LOADING } from "../../const/messages";
+import { HOUSING_PREFIX } from "../../const/constants.js";
+import { FAILED_CONFIG_LOADING } from "../../const/messages.js";
 
 // Prefix used to namespace customID values for all housing config UI components.
 // This makes routing component interactions straightforward.
@@ -228,4 +228,3 @@ const subcmd: ConfigSubcommand = {
 
 
 export default subcmd;
-

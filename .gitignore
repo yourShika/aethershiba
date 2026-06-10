@@ -3,3 +3,4 @@ dist
 .env
 /src/guildconfig
 /src/json
+/data

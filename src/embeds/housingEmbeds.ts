@@ -1,8 +1,8 @@
 // commands/housing/embed.ts
 import { AttachmentBuilder, EmbedBuilder } from 'discord.js';
 import { fileURLToPath } from 'node:url';
-import type { Plot } from '../functions/housing/housingProvider.paissa';
-import { DISTRICT_IMAGES } from '../const/housing';
+import type { Plot } from '../functions/housing/housingProvider.paissa.js';
+import { DISTRICT_IMAGES } from '../const/housing.js';
 
 /**
  * Builds an embed describing a housing plot.
@@ -89,5 +89,4 @@ export function plotEmbed(p: Plot, refreshedAt?: Date) {
     // Return both embed and optional attachment to be used when sending messages
     return { embed, attachment };
 }
-
 

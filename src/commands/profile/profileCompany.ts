@@ -7,7 +7,7 @@
 
 import { fetch } from "undici";
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
+import utc from "dayjs/plugin/utc.js";
 
 dayjs.extend(utc);
 
@@ -26,8 +26,8 @@ import {
 } from "discord.js";
 import sharp from "sharp";
 
-import { DATACENTERS } from "../../const/housing";
-import { getWorldNamesByDC } from "../../functions/housing/housingWorlds";
+import { DATACENTERS } from "../../const/housing.js";
+import { getWorldNamesByDC } from "../../functions/housing/housingWorlds.js";
 import {
     fetchLodestoneFreeCompany,
     fetchLodestoneFreeCompanyMembers,
@@ -35,10 +35,10 @@ import {
     type LodestoneFreeCompany,
     type LodestoneFreeCompanyMember,
     type LodestoneFreeCompanyFocus,
-} from '../../functions/profile/profileLodestoneAPI';
-import { logger } from "../../lib/logger";
-import { getCompanyEmoji, getCityEmoji } from "../../const/emojis";
-import { PROFILE_PREFIX } from "../../const/constants";
+} from '../../functions/profile/profileLodestoneAPI.js';
+import { logger } from "../../lib/logger.js";
+import { getCompanyEmoji, getCityEmoji } from "../../const/emojis.js";
+import { PROFILE_PREFIX } from "../../const/constants.js";
 
 // Constants and Types
 const USER_AGENT = 'Mozilla/5.0 (compatible; AetherShiba/1.0)';

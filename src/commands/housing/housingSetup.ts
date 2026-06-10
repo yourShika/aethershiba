@@ -15,13 +15,12 @@ import { configManager } from '../../handlers/configHandler.js';
 import { HousingStart } from '../../schemas/housing.js';
 import { PaissaProvider, PaissaUnavailableError } from '../../functions/housing/housingProvider.paissa.js';
 import { plotEmbed } from '../../embeds/housingEmbeds.js';
-import { readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
 import type { Plot } from '../../functions/housing/housingProvider.paissa.js';
 import { threadManager } from '../../lib/threadManager.js';
 import { logger } from '../../lib/logger.js';
 import { plotKey, plotHash } from '../../functions/housing/housingUtils.js';
 import { ANOTHER_HOUSING_TASK_RUNNING, GUILD_ONLY, HOUSING_NEEDS_FORUM, HOUSING_REFRESH_RUNNING, NO_FREE_PLOTS, NO_HOUSING_CONFIGURED, PAISSA_API_UNAVAILABLE } from '../../const/messages.js';
+import { dataFile, legacyDataFile, readJsonWithLegacy, writeJsonSafe } from '../../lib/dataStore.js';
 
 // PaissaDB API 
 const provider = new PaissaProvider();
@@ -87,19 +86,15 @@ export default {
     }
 
     // Load existing state to detect if we already have messages recorded
-    const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
+    const filePath = dataFile('housing_messages.json');
+    const legacyFilePath = legacyDataFile('housing_messages.json');
     let store: Record<string, {
       channelId: string,
       threads: Record<string, string>;
       messages: Record<string, { threadId: string; messageId: string; hash: string; deleteAt?: number; refreshedAt?: number }>;
       config?: { dataCenter: string; worlds: string[]; districts: string[] };
     }> = {};
-    try {
-      const raw = await readFile(filePath, 'utf8');
-      store = JSON.parse(raw);
-    } catch {
-      store = {};
-    }
+    store = await readJsonWithLegacy(filePath, legacyFilePath, store);
 
     // If we already have stored messages for this guild, avoid double-posting
     const rec = store[guildID];
@@ -203,12 +198,7 @@ export default {
         { threadId: string; messageId: string; hash: string; deleteAt?: number; refreshedAt?: number }>;
         config?: { dataCenter: string; worlds: string[]; districts: string[] };
       }> = {};
-      try {
-        const raw = await readFile(filePath, 'utf8');
-        st = JSON.parse(raw);
-      } catch {
-        st = {};
-      }
+      st = await readJsonWithLegacy(filePath, legacyFilePath, st);
 
       const rec = st[guildID] ?? { channelId: hc.channelId, threads: {}, messages: {} as Record<string, { threadId: string; messageId: string; hash: string; deleteAt?: number; refreshedAt?: number }> };
       rec.channelId = hc.channelId;
@@ -271,11 +261,7 @@ export default {
       // ---------------------------------------------------
       // Persist updated message map
       // ---------------------------------------------------
-      try {
-        await writeFile(filePath, JSON.stringify(st, null, 2), 'utf8');
-      } catch (err) {
-        logger.error(`[🏠Housing][${guildID}] Fehler beim Schreiben von ${filePath}: ${String(err)}`);
-      }
+      await writeJsonSafe(filePath, st, `[Housing][${guildID}]`);
 
       // Final ephemeral confirmation to the invoker
       await safeEditReply(

@@ -45,7 +45,7 @@ git clone &lt;DEIN-REPO-URL&gt;
 cd &lt;repo&gt;
 
 # Abhängigkeiten (Beispiel Node)
-npm install
+npm ci
 </code></pre>
 
 <ol start="3">
@@ -53,6 +53,7 @@ npm install
 </ol>
 
 <pre><code># Node (Beispiel)
+npm run build
 npm run start
 </code></pre>
 
@@ -71,18 +72,33 @@ npm run start
 <h2 id="features">🧩 Aufgaben des Bots (Feature-Liste)</h2>
 <ul>
   <li>🏠 <strong>Listing von freien Häusern</strong> auf allen Datenzentren <strong>(Implementiert)</strong></li>
-  <li>📆 <strong>Daily- &amp; Weekly-Reset</strong> Benachrichtigungen, Event-Planung <strong>(W.I.P)</strong></li>
-  <li>🔔 <strong>Marktbrett-Preisalarm</strong> (Auto-Alerts bei Zielpreis/Preisschwankung) <strong>(W.I.P)</strong></li>
-  <li>💹 <strong>Marktbrett-Deals</strong> (30 günstige Kauf/teurer Verkauf-Kandidaten zwischen Welten) <strong>(W.I.P)</strong></li>
-  <li>🐉 <strong>Hunt-Notifikationen</strong> (S-/A-Rank Spawns, Integration zu Hunt-Linkshell-Daten, falls möglich) <strong>(W.I.P)</strong></li>
-  <li>🎰 <strong>Gold Saucer Events</strong> (MGP-Events, Fashion-Report-Reminder mit Guide-Links) <strong>(W.I.P)</strong></li>
-  <li>🔗 <strong>Accounts-Linking mit Discord</strong> (Rollen via Reactions, Mehrfach-Char-Linking via Lodestone/Codes) <strong>(W.I.P)</strong></li>
-  <li>👗 <strong>Fashion Report Guessing</strong> (Community-Voting/Predictions) <strong>(W.I.P)</strong></li>
-  <li>🗓️ <strong>Events-Planung</strong> (Raids, Schatzkarten; Guide-Links, Bilder) <strong>(W.I.P)</strong></li>
-  <li>🃏 <strong>Triple Triad Minigame</strong> im Discord-Channel <strong>(W.I.P)</strong></li>
-  <li>🪞 <strong>Fashion Report Simulator</strong> (Outfits posten, Community stimmt ab, Punktevergabe) <strong>(W.I.P)</strong></li>
-  <li>🧠 <strong>Marktbrett-Quiz</strong> (Item + Region → Preis raten) <strong>(W.I.P)</strong></li>
-  <li>📰 <strong>Official-Info/News/Störungen</strong> als Embed-Posts <strong>(W.I.P)</strong></li>
+  <li>📆 <strong>Daily- &amp; Weekly-Reset</strong> Benachrichtigungen <strong>(Implementiert)</strong></li>
+  <li>🔔 <strong>Marktbrett-Preisalarm</strong> (Auto-Alerts bei Zielpreis) <strong>(Implementiert)</strong></li>
+  <li>💹 <strong>Marktbrett-Deals</strong> (bis zu 30 Kandidaten aus übergebenen Item-IDs zwischen Welten) <strong>(Implementiert)</strong></li>
+  <li>🐉 <strong>Hunt-Notifikationen</strong> (player-reported S-/A-Rank Posts mit Rollen-Ping) <strong>(Implementiert)</strong></li>
+  <li>🎰 <strong>Gold Saucer Events</strong> (GATE-Zeitfenster, Fashion-Report-Reminder mit Guide-Links) <strong>(Implementiert)</strong></li>
+  <li>🔗 <strong>Accounts-Linking mit Discord</strong> (Lodestone-Code-Verifizierung, Inspect, Search, Unlink) <strong>(Implementiert)</strong></li>
+  <li>👗 <strong>Fashion Report Guessing</strong> (Community-Voting/Predictions) <strong>(Implementiert)</strong></li>
+  <li>🗓️ <strong>Events-Planung</strong> (Raids, Schatzkarten; Guide-Links, Bilder, Join/Maybe/Leave) <strong>(Implementiert)</strong></li>
+  <li>🃏 <strong>Triple Triad Minigame</strong> im Discord-Channel <strong>(Implementiert)</strong></li>
+  <li>🪞 <strong>Fashion Report Simulator</strong> (Outfit-Planung, Community-Punkte) <strong>(Implementiert)</strong></li>
+  <li>🧠 <strong>Marktbrett-Quiz</strong> (Item + Region → Preis raten) <strong>(Implementiert)</strong></li>
+  <li>📰 <strong>Official-Info/News/Störungen</strong> als Embed-Posts <strong>(Implementiert)</strong></li>
+</ul>
+
+<h3>Slash-Commands</h3>
+<ul>
+  <li><code>/housing</code> – Housing-Setup, Refresh, Reset, Suche und Info.</li>
+  <li><code>/profile</code> – Lodestone-Linking, Me/Inspect/Search/Company und Unlink.</li>
+  <li><code>/market</code> – Preischeck, Alerts, Alert-Verwaltung und Deal-Vergleich.</li>
+  <li><code>/resets</code> – Daily-/Weekly-Reset-Reminder konfigurieren und testen.</li>
+  <li><code>/hunt</code> – Hunt-Reports posten und Rollen-/Channel-Abo konfigurieren.</li>
+  <li><code>/saucer</code> – Gold-Saucer-Helfer, Fashion-Report-Reminder und Guide-Link.</li>
+  <li><code>/events</code> – Discord-Eventposts mit Signup-Buttons erstellen, listen und abbrechen.</li>
+  <li><code>/fashion</code> – Outfit-/Prediction-Posts, Voting und einfacher Simulator.</li>
+  <li><code>/tripletriad</code> – schneller Button-basierter Mini-Match.</li>
+  <li><code>/quiz</code> – Marktpreis-Quiz gegen aktuelle Universalis-Daten.</li>
+  <li><code>/news</code> – offizielle Lodestone-Feeds abrufen und abonnieren.</li>
 </ul>
 
 <hr>
@@ -104,6 +120,7 @@ npm run start
 <ul>
   <li><strong>Lokal/Server/VPS</strong> möglich.</li>
   <li><strong>Docker</strong> empfohlen: ein Service für den Bot, optional Cache/DB (z. B. Redis/PostgreSQL).</li>
+  <li>Laufzeitdaten werden standardmäßig unter <code>data/</code> gespeichert. Mit <code>AETHERSHIBA_DATA_DIR</code> kann ein anderer Speicherort gesetzt werden.</li>
   <li>Speichere nur, was die Features wirklich benötigen.</li>
 </ul>
 

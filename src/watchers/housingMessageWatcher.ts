@@ -3,11 +3,10 @@
 // Dependecies
 // ---------------------------------------------------
 import { messageLink, type Client, ChannelType, type TextBasedChannel } from 'discord.js';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import path from 'node:path';
-import { logger } from '../lib/logger';
+import { logger } from '../lib/logger.js';
 import { startTaskLoop } from '../lib/taskLoop.js';
-import { botConfig } from '../config';
+import { botConfig } from '../config.js';
+import { dataFile, legacyDataFile, readJsonWithLegacy, writeJsonSafe } from '../lib/dataStore.js';
 
 // Type definition for how messages and threads are tracked in the JSON store
 type MsgRecord = {
@@ -20,7 +19,8 @@ type MsgRecord = {
 };
 
 // file path where we persist messages/thread data
-const filePath = path.join(process.cwd(), 'src', 'json', 'housing_messages.json');
+const filePath = dataFile('housing_messages.json');
+const legacyFilePath = legacyDataFile('housing_messages.json');
 
 // Flag to detect if a watcher tick is already running
 let isTickRunning = false;
@@ -59,13 +59,7 @@ export function startHousingMessageWatcher(client: Client) {
       // ---------------------------------------------------
       // Load store from JSON file
       // ---------------------------------------------------
-      try {
-        const raw = await readFile(filePath, 'utf8');
-        store = JSON.parse(raw) as Record<string, MsgRecord>;
-      } catch (err) {
-        logger.debug(`Konnte ${filePath} nicht lesen oder parsen – starte mit leerem Store. Fehler: ${String(err)}`);
-        store = {};
-      }
+      store = await readJsonWithLegacy<Record<string, MsgRecord>>(filePath, legacyFilePath, {});
 
       // ---------------------------------------------------
       // Iterate over all guild records in the store
@@ -172,14 +166,8 @@ export function startHousingMessageWatcher(client: Client) {
       // Write updated store back to disk if changes happened
       // ---------------------------------------------------
       if (changed) {
-        try {
-          // Make dir if non-existent otherwise write into the store
-          await mkdir(path.dirname(filePath), { recursive: true });
-          await writeFile(filePath, JSON.stringify(store, null, 2), 'utf8');
-          logger.debug(`Änderungen am Store gespeichert: removed=${removed}, checked=${checked}`);
-        } catch (err) {
-          logger.debug(`Fehler beim Schreiben von ${filePath}: ${String(err)}`);
-        }
+        const saved = await writeJsonSafe(filePath, store, 'housing message watcher');
+        if (saved) logger.debug(`Änderungen am Store gespeichert: removed=${removed}, checked=${checked}`);
       }
     } catch (err) {
       // Catch-all to prevent the interval from ever stopping

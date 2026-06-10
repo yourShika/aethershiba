@@ -2,11 +2,11 @@
 
 import type { Client, TextChannel, ForumChannel, ThreadChannel } from 'discord.js';
 import { ChannelType } from 'discord.js';
-import { configManager } from '../../handlers/configHandler';
-import { HousingRequired } from '../../schemas/housing';
-import { PaissaProvider, PaissaUnavailableError } from './housingProvider.paissa';
+import { configManager } from '../../handlers/configHandler.js';
+import { HousingRequired } from '../../schemas/housing.js';
+import { PaissaProvider, PaissaUnavailableError } from './housingProvider.paissa.js';
 import { plotEmbed } from '../../embeds/housingEmbeds.js';
-import * as seen from './housingSaveConfig';
+import * as seen from './housingSaveConfig.js';
 import { logError } from '../../handlers/errorHandler.js';
 
 // Data provider for housing plot information (PaissaDB-backed)

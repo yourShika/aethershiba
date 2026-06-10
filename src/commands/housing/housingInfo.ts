@@ -1,7 +1,7 @@
 // commands/housing/housingInfo.ts
 
 import { MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
-import { HOUSING_INFO } from '../../const/messages';
+import { HOUSING_INFO } from '../../const/messages.js';
 
 export default {
   name: 'info',

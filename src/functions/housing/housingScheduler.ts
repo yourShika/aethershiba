@@ -1,15 +1,14 @@
 // functions/housing/housingScheduler.ts
 
 import type { Client } from 'discord.js';
-import { configManager } from '../../handlers/configHandler';
-import { HousingRequired } from '../../schemas/housing';
-import { refreshHousing } from './housingRefresh';
+import { configManager } from '../../handlers/configHandler.js';
+import { HousingRequired } from '../../schemas/housing.js';
+import { refreshHousing } from './housingRefresh.js';
 import { logError } from '../../handlers/errorHandler.js';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import path from 'node:path';
-import { threadManager } from '../../lib/threadManager';
+import { threadManager } from '../../lib/threadManager.js';
 import { startTaskLoop } from '../../lib/taskLoop.js';
 import { loadSchedules } from './housingScheduleStore.js';
+import { dataFile, legacyDataFile, readJsonWithLegacy, writeJsonSafe } from '../../lib/dataStore.js';
 
 // ---------------------------------------------------
 // State Tracking
@@ -28,12 +27,8 @@ type S = { last?: number; runs: number; day: string; running: boolean; completed
 const state = new Map<string, S>();
 
 // JSON file on disk for persisting state across restarts
-const stateFile = path.join(
-    process.cwd(), 
-    'src', 
-    'json', 
-    'housing_scheduler_state.json'
-);
+const stateFile = dataFile('housing_scheduler_state.json');
+const legacyStateFile = legacyDataFile('housing_scheduler_state.json');
 
 // ---------------------------------------------------
 // State Persistence
@@ -45,12 +40,12 @@ const stateFile = path.join(
  */
 async function loadState() {
     try {
-        // read JSON file
-        const raw = await readFile(stateFile, 'utf8');
-        const obj = JSON.parse(raw) as Record<
+        const obj = await readJsonWithLegacy<
+            Record<
             string,
             { last?: number; runs: number; day: string; completedSlots?: string[] }
-        >;
+            >
+        >(stateFile, legacyStateFile, {});
 
         // Convert JSON records into in-memory objects
         for (const [gid, s] of Object.entries(obj)) {
@@ -84,12 +79,7 @@ async function saveState() {
         obj[gid] = rec;
     }
 
-    try {
-        await mkdir(path.dirname(stateFile), { recursive: true });
-        await writeFile(stateFile, JSON.stringify(obj, null, 2), 'utf8');
-    } catch (err) {
-        logError('housing scheduler state save', err);
-    }
+    await writeJsonSafe(stateFile, obj, 'housing scheduler state save');
 }
 
 // Load state immediately on module import

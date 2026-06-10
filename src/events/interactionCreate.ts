@@ -3,8 +3,7 @@
 import { Events, Client, MessageFlags, DiscordAPIError, RESTJSONErrorCodes } from 'discord.js';
 import { logger } from '../lib/logger.js';
 import { commandHandler } from '../handlers/commandHandler.js';
-import { HOUSING_PREFIX } from '../const/constants.js';
-import { PROFILE_PREFIX } from '../const/constants.js';
+import { EVENT_PREFIX, FASHION_PREFIX, HOUSING_PREFIX, PROFILE_PREFIX, TRIAD_PREFIX } from '../const/constants.js';
 import { ERROR_OCCURRED, UNHANDLED_INTERACTION, UNKNOWN_ACTION } from '../const/messages.js';
 
 function isInvalidWebhookTokenError(error: unknown): error is DiscordAPIError {
@@ -52,6 +51,14 @@ export function register(client: Client) {
                 }
 
                 if (interaction.customId?.startsWith(PROFILE_PREFIX)) {
+                    return;
+                }
+
+                if (
+                    interaction.customId?.startsWith(EVENT_PREFIX) ||
+                    interaction.customId?.startsWith(FASHION_PREFIX) ||
+                    interaction.customId?.startsWith(TRIAD_PREFIX)
+                ) {
                     return;
                 }
 
@@ -107,4 +114,3 @@ export function register(client: Client) {
 
 // Default export (for automatic event registration in event loaders)
 export default { register };
-

@@ -1,9 +1,9 @@
 // commands/admin/adminReloadCommands.ts
 
 import { MessageFlags, type ChatInputCommandInteraction } from "discord.js";
-import { commandHandler, CommandHandler } from "../../handlers/commandHandler";
-import { logger } from "../../lib/logger";
-import type { AdminSubcommand } from "./admin";
+import { commandHandler } from "../../handlers/commandHandler.js";
+import { logger } from "../../lib/logger.js";
+import type { AdminSubcommand } from "./admin.js";
 
 const reloadCommands: AdminSubcommand = {
     name: 'reload-commands',
@@ -12,7 +12,7 @@ const reloadCommands: AdminSubcommand = {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         try {
-            const { commands } = await import('../../handlers/commandInit');
+            const { commands } = await import('../../handlers/commandInit.js');
             commandHandler.registerAll(commands);
 
             await commandHandler.deploy(interaction.client);

@@ -5,7 +5,7 @@
 // ---------------------------------------------------
 
 import chalk from 'chalk';
-import { botConfig } from '../config';
+import { botConfig } from '../config.js';
 
 // Color function type used to annotate log level labels.
 type ColorFn = (s: string) => string;

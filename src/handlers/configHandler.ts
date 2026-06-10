@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { ConfigSchema, GuildConfig } from './configSchema.js';
 import { logger } from '../lib/logger.js';
+import { dataFile, legacyDataFile, readJsonWithLegacy, writeJson } from '../lib/dataStore.js';
 
 // ---------------------------------------------------
 // Configuration Manager
@@ -50,8 +51,8 @@ export class ConfigManager {
      *  - schemaDir: where to load schema modules from 
      */
     constructor(options?: { configDir?: string; schemaDir?: string }) {
-        this.configDir = options?.configDir || path.join(process.cwd(), 'src', 'guildconfig');
-        this.schemaDir = options?.schemaDir || path.join(__dirname, 'schemas');
+        this.configDir = options?.configDir || dataFile('guildconfig');
+        this.schemaDir = options?.schemaDir || path.join(__dirname, '..', 'schemas');
     }
 
     /**
@@ -80,6 +81,10 @@ export class ConfigManager {
         return path.join(this.configDir, `${gid}_config.json`);
     }
 
+    private legacyFileFor(gid: string) {
+        return legacyDataFile('..', 'guildconfig', `${gid}_config.json`);
+    }
+
     // Ensure that the config directory exists (creates it if missing).
     private async ensureDir() {
         await fs.mkdir(this.configDir, { recursive: true });
@@ -96,15 +101,12 @@ export class ConfigManager {
 
         // get Data in the variable
         await this.ensureDir();
-        let data: GuildConfig = {};
-        
-        try {
-            const raw = await fs.readFile(this.fileFor(gid), 'utf-8');
-            data = JSON.parse(raw);
-            if (!isObject(data)) data = {};
-        } catch (err) {
-            logger.warn(`Failed to read config for guild ${gid}: ${err}`);
-        }
+        let data = await readJsonWithLegacy<GuildConfig>(
+            this.fileFor(gid),
+            this.legacyFileFor(gid),
+            {},
+        );
+        if (!isObject(data)) data = {};
 
         this.cache.set(gid, data);
         return data;
@@ -120,7 +122,7 @@ export class ConfigManager {
     private async save(gid: string, data: GuildConfig) {
         // Get Data and save to the file
         await this.ensureDir();
-        await fs.writeFile(this.fileFor(gid), JSON.stringify(data, null, 2), 'utf-8');
+        await writeJson(this.fileFor(gid), data);
         this.cache.set(gid, data);
         logger.info(`Saved config for guild ${gid}`);
     }
